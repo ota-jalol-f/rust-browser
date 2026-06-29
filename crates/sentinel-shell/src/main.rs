@@ -8,7 +8,11 @@
 fn main() -> sentinel_core::Result<()> {
     use sentinel_core::BrowserConfig;
 
-    let config = BrowserConfig::default();
+    // Open Google on startup (overriding the about:blank default).
+    let config = BrowserConfig {
+        home_url: "https://www.google.com".into(),
+        ..BrowserConfig::default()
+    };
     config.validate()?;
 
     let mut browser = sentinel_shell::browser::Browser::new(&config)?;
