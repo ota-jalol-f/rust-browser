@@ -860,6 +860,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "sentinel-shell"
+version = "0.1.0"
+dependencies = [
+ "sentinel-core",
+ "sentinel-engine",
+ "ul-next",
+]
+
+[[package]]
 name = "sentinel-storage"
 version = "0.1.0"
 dependencies = [

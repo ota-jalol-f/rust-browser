@@ -1,0 +1,22 @@
+[package]
+name = "sentinel-shell"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "sentinel"
+path = "src/main.rs"
+
+[features]
+# Off by default so `normalize_url` and the crate build/test without the SDK.
+# The windowed browser (App/Window/Overlay) is gated behind this feature, which
+# uses ul-next's `loaded` mode (runtime DLL loading) — NOT `appcore_linked`,
+# which would require the SDK at link time.
+default = []
+ultralight = ["dep:ul-next", "sentinel-engine/ultralight"]
+
+[dependencies]
+sentinel-core = { path = "../sentinel-core" }
+sentinel-engine = { path = "../sentinel-engine" }
+ul-next = { version = "0.5.4", features = ["loaded"], optional = true }
