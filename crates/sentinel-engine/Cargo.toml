@@ -1,0 +1,19 @@
+[package]
+name = "sentinel-engine"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+
+[features]
+# Off by default so the workspace builds and tests without the proprietary
+# Ultralight SDK. Enable with `--features ultralight` on a machine where the
+# Ultralight shared libraries (UltralightCore, WebCore, Ultralight) are loadable.
+default = []
+ultralight = ["dep:ul-next"]
+
+[dependencies]
+sentinel-core = { path = "../sentinel-core" }
+# `loaded` feature => Ultralight DLLs are dlopen'd at runtime via libloading,
+# matching this project's "load DLLs directly" theme and letting the crate
+# compile without the SDK present at link time.
+ul-next = { version = "0.5.4", features = ["loaded"], optional = true }

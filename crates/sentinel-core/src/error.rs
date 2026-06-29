@@ -26,6 +26,15 @@ pub enum Error {
     #[error("config error: {0}")]
     Config(String),
 
+    /// A cryptographic operation failed — key derivation, encryption, or, most
+    /// importantly, **authentication** (wrong key or tampered ciphertext on decrypt).
+    #[error("crypto error: {0}")]
+    Crypto(String),
+
+    /// A storage / database operation failed.
+    #[error("storage error: {0}")]
+    Storage(String),
+
     /// A navigation request was invalid — bad URL, empty history, or a cursor
     /// move with no destination.
     #[error("navigation error: {0}")]
