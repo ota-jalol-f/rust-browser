@@ -66,7 +66,7 @@ mod gui {
     use super::normalize_url;
     use sentinel_core::{BrowserConfig, Error, History, Result};
     use ul_next::{
-        app::App,
+        app::{App, Settings},
         window::{Window, WindowFlags},
         overlay::Overlay,
         Library,
@@ -95,21 +95,22 @@ mod gui {
         /// [`Error::Engine`] if the libraries cannot be loaded or any Ultralight
         /// object fails to construct.
         pub fn new(config: &BrowserConfig) -> Result<Self> {
-            // Make the executable's own directory the working directory so AppCore
-            // finds the SDK `resources/` folder (staged next to the exe by build.rs)
-            // regardless of where the browser was launched from.
-            if let Ok(exe) = std::env::current_exe() {
-                if let Some(dir) = exe.parent() {
-                    let _ = std::env::set_current_dir(dir);
-                }
-            }
-
             // Linked mode: Ultralight + AppCore symbols are resolved at build time
             // against ul-next-sys's import library (the runtime GetProcAddress path
             // fails on this SDK build). The DLLs are staged next to the exe.
             let lib = Library::linked();
 
-            let app = App::new(lib.clone(), None, None)
+            // AppCore resolves `filesystem_path` RELATIVE TO THE EXECUTABLE on
+            // Windows, so "." points at the exe directory — where build.rs stages
+            // the SDK `resources/` folder (icudt67l.dat, cacert.pem). This is
+            // CWD-independent: no need to change the process working directory.
+            let settings = Settings::start()
+                .app_name("Sentinel")
+                .filesystem_path(".")
+                .build(lib.clone())
+                .ok_or_else(|| Error::Engine("settings build returned None".into()))?;
+
+            let app = App::new(lib.clone(), Some(settings), None)
                 .map_err(|e| Error::Engine(format!("app create: {e:?}")))?;
 
             let window = app
