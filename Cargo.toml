@@ -6,6 +6,7 @@ members = [
     "crates/sentinel-crypto",
     "crates/sentinel-storage",
     "crates/sentinel-shell",
+    "crates/sentinel-permissions",
 ]
 
 [workspace.package]

@@ -850,6 +850,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "sentinel-permissions"
+version = "0.1.0"
+dependencies = [
+ "sentinel-core",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "sentinel-shell"
 version = "0.1.0"
 dependencies = [
