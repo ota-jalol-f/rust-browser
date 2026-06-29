@@ -95,10 +95,19 @@ mod gui {
         /// [`Error::Engine`] if the libraries cannot be loaded or any Ultralight
         /// object fails to construct.
         pub fn new(config: &BrowserConfig) -> Result<Self> {
-            // SAFETY: dlopens the genuine Ultralight + AppCore shared libraries
-            // (a documented deployment invariant). Done once per process.
-            let lib = unsafe { Library::load_with_appcore() }
-                .map_err(|e| Error::Engine(format!("failed to load Ultralight + AppCore: {e}")))?;
+            // Make the executable's own directory the working directory so AppCore
+            // finds the SDK `resources/` folder (staged next to the exe by build.rs)
+            // regardless of where the browser was launched from.
+            if let Ok(exe) = std::env::current_exe() {
+                if let Some(dir) = exe.parent() {
+                    let _ = std::env::set_current_dir(dir);
+                }
+            }
+
+            // Linked mode: Ultralight + AppCore symbols are resolved at build time
+            // against ul-next-sys's import library (the runtime GetProcAddress path
+            // fails on this SDK build). The DLLs are staged next to the exe.
+            let lib = Library::linked();
 
             let app = App::new(lib.clone(), None, None)
                 .map_err(|e| Error::Engine(format!("app create: {e:?}")))?;

@@ -6,8 +6,20 @@
 //!
 //! This module is compiled only when the `ultralight` feature is enabled.
 
+use std::path::PathBuf;
+
 use sentinel_core::{Error, Result};
 use ul_next::{config::Config, platform, renderer::Renderer, view::ViewConfig, Library};
+
+/// Directory containing the running executable, used as the Ultralight resource
+/// base so resource discovery is independent of the current working directory.
+fn exe_dir() -> Result<PathBuf> {
+    let exe = std::env::current_exe()
+        .map_err(|e| Error::Engine(format!("cannot locate current executable: {e}")))?;
+    exe.parent()
+        .map(|p| p.to_path_buf())
+        .ok_or_else(|| Error::Engine("executable has no parent directory".into()))
+}
 
 /// Render `html` at `width`x`height` (pixels) and return the raw surface bytes in
 /// **premultiplied BGRA** order (Ultralight's CPU surface format). The buffer is
@@ -22,23 +34,32 @@ use ul_next::{config::Config, platform, renderer::Renderer, view::ViewConfig, Li
 /// engine object (config, renderer, view, surface) fails to initialize, or if the
 /// page fails to load.
 ///
-/// # Safety / process model
+/// # Process model
 /// Ultralight's `Renderer` may be created only **once per process**. Do not call
-/// this in a process that also constructs the windowed `App`. The underlying
-/// library load is `unsafe` (it `dlopen`s native code); we contain that here.
+/// this in a process that also constructs the windowed `App`. The Ultralight DLLs
+/// are linked (build-time) and must be present next to the executable at runtime
+/// (the crate's build script stages them).
 pub fn render_html_to_bgra(html: &str, width: u32, height: u32) -> Result<Vec<u8>> {
-    // SAFETY: `Library::load` dlopens the Ultralight shared libraries. This is
-    // sound provided the libraries on the path are the genuine Ultralight SDK
-    // binaries (a deployment invariant documented in the crate README). We load
-    // once and keep the `Arc<Library>` alive for the duration of all engine use.
-    let lib = unsafe { Library::load() }
-        .map_err(|e| Error::Engine(format!("failed to load Ultralight libraries: {e}")))?;
+    // Linked mode: symbols are resolved at build time against ul-next-sys's
+    // matching import library. (The `loaded`/runtime-GetProcAddress path fails on
+    // this SDK build with a symbol mismatch.) The Ultralight DLLs are staged next
+    // to the executable by the crate's build script and resolved by the OS loader.
+    let lib = Library::linked();
+
+    // Resolve the SDK resource base from the executable's own directory so it does
+    // NOT depend on the current working directory. Ultralight loads
+    // `<base>/resources/{icudt*.dat,cacert.pem}`.
+    let base = exe_dir()?;
+    let base_str = base
+        .to_str()
+        .ok_or_else(|| Error::Engine("executable path is not valid UTF-8".into()))?;
+    let log_path = base.join("ultralight.log");
 
     // Platform handlers must be installed before `Renderer::create`.
     platform::enable_platform_fontloader(lib.clone());
-    platform::enable_platform_filesystem(lib.clone(), ".")
+    platform::enable_platform_filesystem(lib.clone(), base_str)
         .map_err(|e| Error::Engine(format!("filesystem platform init: {e:?}")))?;
-    platform::enable_default_logger(lib.clone(), "./ultralight.log")
+    platform::enable_default_logger(lib.clone(), log_path.to_string_lossy().as_ref())
         .map_err(|e| Error::Engine(format!("logger init: {e:?}")))?;
 
     let config = Config::start()

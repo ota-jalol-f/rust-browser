@@ -11,12 +11,13 @@ path = "src/main.rs"
 [features]
 # Off by default so `normalize_url` and the crate build/test without the SDK.
 # The windowed browser (App/Window/Overlay) is gated behind this feature, which
-# uses ul-next's `loaded` mode (runtime DLL loading) — NOT `appcore_linked`,
-# which would require the SDK at link time.
+# uses ul-next's `appcore_linked` mode: ul-next-sys downloads the matching SDK at
+# build time and we link against it (the runtime `loaded`/GetProcAddress path
+# fails on this SDK build). DLLs are staged next to the exe by build.rs.
 default = []
 ultralight = ["dep:ul-next", "sentinel-engine/ultralight"]
 
 [dependencies]
 sentinel-core = { path = "../sentinel-core" }
 sentinel-engine = { path = "../sentinel-engine" }
-ul-next = { version = "0.5.4", features = ["loaded"], optional = true }
+ul-next = { version = "0.5.4", features = ["appcore_linked"], optional = true }

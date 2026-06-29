@@ -13,7 +13,10 @@ ultralight = ["dep:ul-next"]
 
 [dependencies]
 sentinel-core = { path = "../sentinel-core" }
-# `loaded` feature => Ultralight DLLs are dlopen'd at runtime via libloading,
-# matching this project's "load DLLs directly" theme and letting the crate
-# compile without the SDK present at link time.
-ul-next = { version = "0.5.4", features = ["loaded"], optional = true }
+# `linked` feature => symbols resolved at build time against ul-next-sys's import
+# library (ul-next-sys downloads the matching SDK during its build). The runtime
+# `loaded`/GetProcAddress path fails on this SDK build with a symbol mismatch, so
+# we link. The crate stays optional, so the workspace builds without ul-next when
+# the `ultralight` feature is off. (Browser plugin/page DLL loading — the project's
+# "load DLLs directly" goal — is a separate, later subsystem and unaffected.)
+ul-next = { version = "0.5.4", features = ["linked"], optional = true }
