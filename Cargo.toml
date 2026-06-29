@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["crates/sentinel-core", "crates/sentinel-engine"]
+members = ["crates/sentinel-core", "crates/sentinel-engine", "crates/sentinel-crypto"]
 
 [workspace.package]
 edition = "2021"
