@@ -7,6 +7,7 @@ members = [
     "crates/sentinel-storage",
     "crates/sentinel-shell",
     "crates/sentinel-permissions",
+    "crates/sentinel-ipc",
 ]
 
 [workspace.package]
