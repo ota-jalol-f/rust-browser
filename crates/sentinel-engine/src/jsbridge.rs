@@ -1,21 +1,21 @@
 //! Installs the `window.native` bridge into a page's JavaScriptCore context and
-//! routes each call through the permission-gated dispatcher.
+//! routes each call through the permission gate, executing permitted requests on
+//! a host [`RequestExecutor`].
 //!
-//! Mechanism (verified headlessly by [`prove_native_dispatch`]):
-//! 1. A single Rust-backed entry point `window.__sentinelNativeCall(jsonRequest)`
-//!    is installed on the page's global object. It parses the JSON request, routes
-//!    it through a shared [`BridgeRouter`] via [`sentinel_bridge::dispatch_json`],
-//!    and returns a JSON outcome string.
-//! 2. A JS shim builds the friendly `window.native` namespace (e.g.
-//!    `window.native.usb.list()`) on top of that entry point.
+//! Flow (verified headlessly by [`run_bridge_probe`]):
+//! `window.native.usb.list()` → JS shim → `window.__sentinelNativeCall(json)` →
+//! [`sentinel_bridge::dispatch_json`] (router checks permission; on grant calls the
+//! executor) → JSON [`sentinel_bridge::DispatchReport`] → parsed back in JS.
 //!
-//! Policy lives entirely in `sentinel-bridge`; this module only marshals strings
-//! across the JS boundary. Compiled only with the `ultralight` feature.
+//! Policy lives in `sentinel-bridge`; the hosts (device/DLL) live behind the
+//! `RequestExecutor` seam. This module only marshals strings across the JS
+//! boundary. Compiled only with the `ultralight` feature.
 
 use std::sync::{Arc, Mutex};
 
 use sentinel_bridge::{dispatch_json, BridgeRouter};
 use sentinel_core::{Error, Result};
+use sentinel_ipc::RequestExecutor;
 use sentinel_permissions::{Origin, PermissionBroker};
 use ul_next::javascript::{JSObject, JSPropertyAttributes, JSValue};
 use ul_next::view::View;
@@ -23,21 +23,28 @@ use ul_next::view::View;
 /// Version string exposed to pages as `window.native.version`.
 pub const BRIDGE_VERSION: &str = "0.1";
 
-/// A router shared between the page callback and the rest of the browser (so the
-/// consent flow can record grants and have them take effect on the next call).
+/// A router shared between the page callback and the consent flow.
 pub type SharedRouter<B> = Arc<Mutex<BridgeRouter<B>>>;
 
+/// A host executor shared between the page callback and the rest of the browser.
+pub type SharedExecutor<E> = Arc<Mutex<E>>;
+
 /// Install the `window.native` bridge into `view`'s JS context, routing calls for
-/// `origin` through `router`.
+/// `origin` through `router` and executing permitted ones on `executor`.
 ///
 /// # Errors
 /// [`Error::Engine`] if the native entry point cannot be installed or the JS shim
 /// fails to evaluate.
-pub fn install_native<B: PermissionBroker + 'static>(
+pub fn install_native<B, E>(
     view: &View,
     router: SharedRouter<B>,
+    executor: SharedExecutor<E>,
     origin: Origin,
-) -> Result<()> {
+) -> Result<()>
+where
+    B: PermissionBroker + 'static,
+    E: RequestExecutor + 'static,
+{
     {
         let ctx = view.lock_js_context();
         let global = ctx.global_object();
@@ -50,8 +57,9 @@ pub fn install_native<B: PermissionBroker + 'static>(
                 .map(|s| s.to_string());
             let outcome = match request_json {
                 Some(json) => {
-                    let guard = router.lock().unwrap_or_else(|p| p.into_inner());
-                    dispatch_json(&guard, &origin, &json)
+                    let router_guard = router.lock().unwrap_or_else(|p| p.into_inner());
+                    let mut exec_guard = executor.lock().unwrap_or_else(|p| p.into_inner());
+                    dispatch_json(&router_guard, &mut *exec_guard, &origin, &json)
                 }
                 None => {
                     r#"{"status":"bad_request","message":"missing request string"}"#.to_string()
@@ -65,8 +73,7 @@ pub fn install_native<B: PermissionBroker + 'static>(
             .map_err(|e| Error::Engine(format!("set_property failed: {e:?}")))?;
     }
 
-    // Friendly namespace built on the native entry point. Each method packages an
-    // IPC request as JSON, calls into Rust, and parses the JSON outcome.
+    // Friendly namespace built on the native entry point.
     let shim = format!(
         "(function(){{\
            const call = window.__sentinelNativeCall;\
@@ -89,35 +96,35 @@ pub fn install_native<B: PermissionBroker + 'static>(
     }
 }
 
-/// Headless, self-contained proof that a page call routes through the permission
-/// gate: with no grant recorded, `window.native.usb.list()` must report
-/// `needs_consent` for the `usb` capability.
-///
-/// Returns the string `"<status>:<capability>"` (expected `"needs_consent:usb"`),
-/// which can only be produced if JS → Rust dispatch → router → JSON all executed.
+/// Headless, self-contained harness: set up a CPU view, install the bridge with the
+/// given `router`/`executor`/`origin`, evaluate `probe_js`, and return its string
+/// result. Used by tests to drive the full JS → policy → executor → JSON path.
 ///
 /// # Errors
 /// [`Error::Engine`] if engine setup, injection, or evaluation fails.
-pub fn prove_native_dispatch() -> Result<String> {
-    use sentinel_permissions::InMemoryBroker;
-
+pub fn run_bridge_probe<B, E>(
+    router: SharedRouter<B>,
+    executor: SharedExecutor<E>,
+    origin: Origin,
+    probe_js: &str,
+) -> Result<String>
+where
+    B: PermissionBroker + 'static,
+    E: RequestExecutor + 'static,
+{
     let renderer = crate::headless::init_renderer()?;
     let view = crate::headless::create_cpu_view(&renderer, 16, 16)?;
     view.load_html("<html><body></body></html>")
         .map_err(|e| Error::Engine(format!("load_html: {e:?}")))?;
     crate::headless::pump_until_loaded(&renderer, &view);
 
-    let router = Arc::new(Mutex::new(BridgeRouter::new(InMemoryBroker::new())));
-    let origin = Origin::parse("https://test.example")
-        .map_err(|e| Error::Engine(format!("origin parse: {e}")))?;
-    install_native(&view, router, origin)?;
+    install_native(&view, router, executor, origin)?;
 
-    let probe = "(function(){ const r = window.native.usb.list(); return r.status + ':' + r.capability; })()";
     match view
-        .evaluate_script(probe)
-        .map_err(|e| Error::Engine(format!("dispatch probe eval failed: {e:?}")))?
+        .evaluate_script(probe_js)
+        .map_err(|e| Error::Engine(format!("probe eval failed: {e:?}")))?
     {
         Ok(s) => Ok(s),
-        Err(js_exception) => Err(Error::Engine(format!("dispatch probe threw: {js_exception}"))),
+        Err(js_exception) => Err(Error::Engine(format!("probe threw: {js_exception}"))),
     }
 }

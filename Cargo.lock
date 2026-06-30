@@ -997,6 +997,7 @@ version = "0.1.0"
 dependencies = [
  "sentinel-bridge",
  "sentinel-core",
+ "sentinel-device-host",
  "sentinel-ipc",
  "sentinel-permissions",
  "ul-next",

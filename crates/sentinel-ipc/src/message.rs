@@ -116,8 +116,12 @@ pub enum Request {
 }
 
 /// A response from a host process.
+///
+/// Adjacently tagged (`{"result": "...", "data": ...}`) so that tuple variants
+/// like [`Response::UsbDevices`] and [`Response::Data`] — whose payloads serialize
+/// as sequences — are representable (internal tagging rejects non-map payloads).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(tag = "result", rename_all = "snake_case")]
+#[serde(tag = "result", content = "data", rename_all = "snake_case")]
 pub enum Response {
     /// USB enumeration result.
     UsbDevices(Vec<UsbDeviceInfo>),
@@ -204,5 +208,24 @@ mod tests {
         // The `op` tag is part of the wire contract; lock it down.
         let json = serde_json::to_string(&Request::UsbList).unwrap();
         assert_eq!(json, r#"{"op":"usb_list"}"#);
+    }
+
+    #[test]
+    fn response_tuple_variants_serialize_and_roundtrip() {
+        // Regression guard: tuple-payload variants must serialize (adjacent tag).
+        let devices = Response::UsbDevices(vec![UsbDeviceInfo {
+            vendor_id: 1,
+            product_id: 2,
+            serial: None,
+            manufacturer: None,
+            product: None,
+        }]);
+        let json = serde_json::to_string(&devices).unwrap();
+        assert!(json.starts_with(r#"{"result":"usb_devices","data":["#), "got: {json}");
+        let back: Response = serde_json::from_str(&json).unwrap();
+        assert_eq!(devices, back);
+
+        // Unit variant has no `data` field.
+        assert_eq!(serde_json::to_string(&Response::Ack).unwrap(), r#"{"result":"ack"}"#);
     }
 }

@@ -14,8 +14,10 @@
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
 
+pub mod executor;
 pub mod message;
 pub mod wire;
 
+pub use executor::RequestExecutor;
 pub use message::{Request, RequestEnvelope, Response, ResponseEnvelope, UsbDeviceInfo};
 pub use wire::{encode, FrameReader, MAX_FRAME_LEN};

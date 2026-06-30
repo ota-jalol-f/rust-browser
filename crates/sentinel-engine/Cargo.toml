@@ -24,3 +24,9 @@ sentinel-ipc = { path = "../sentinel-ipc", optional = true }
 # the `ultralight` feature is off. (Browser plugin/page DLL loading — the project's
 # "load DLLs directly" goal — is a separate, later subsystem and unaffected.)
 ul-next = { version = "0.5.4", features = ["linked"], optional = true }
+
+[dev-dependencies]
+# Used by the JS-bridge integration test as a real RequestExecutor + policy.
+sentinel-device-host = { path = "../sentinel-device-host" }
+sentinel-permissions = { path = "../sentinel-permissions" }
+sentinel-bridge = { path = "../sentinel-bridge" }

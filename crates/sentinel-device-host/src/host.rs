@@ -5,7 +5,7 @@
 //! transfer / close) is stubbed with a clear error until the hardware I/O path
 //! and its handle table land — kept honest rather than faked.
 
-use sentinel_ipc::{Request, Response};
+use sentinel_ipc::{Request, RequestExecutor, Response};
 
 use crate::backend::DeviceBackend;
 
@@ -59,6 +59,13 @@ impl<B: DeviceBackend> DeviceHost<B> {
                 }
             }
         }
+    }
+}
+
+impl<B: DeviceBackend> RequestExecutor for DeviceHost<B> {
+    /// Execute via [`DeviceHost::handle`] — the device host *is* a request executor.
+    fn execute(&mut self, request: Request) -> Response {
+        self.handle(request)
     }
 }
 
