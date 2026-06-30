@@ -15,9 +15,23 @@ path = "src/main.rs"
 # build time and we link against it (the runtime `loaded`/GetProcAddress path
 # fails on this SDK build). DLLs are staged next to the exe by build.rs.
 default = []
-ultralight = ["dep:ul-next", "sentinel-engine/ultralight"]
+ultralight = [
+    "dep:ul-next",
+    "sentinel-engine/ultralight",
+    "dep:sentinel-bridge",
+    "dep:sentinel-hosts",
+    "dep:sentinel-permissions",
+    "dep:sentinel-device-host",
+    "dep:sentinel-dll-host",
+]
 
 [dependencies]
 sentinel-core = { path = "../sentinel-core" }
 sentinel-engine = { path = "../sentinel-engine" }
 ul-next = { version = "0.5.4", features = ["appcore_linked"], optional = true }
+# Native-bridge stack, pulled in only with the GUI (ultralight) feature.
+sentinel-bridge = { path = "../sentinel-bridge", optional = true }
+sentinel-hosts = { path = "../sentinel-hosts", optional = true }
+sentinel-permissions = { path = "../sentinel-permissions", optional = true }
+sentinel-device-host = { path = "../sentinel-device-host", optional = true }
+sentinel-dll-host = { path = "../sentinel-dll-host", optional = true }
