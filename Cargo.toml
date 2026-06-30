@@ -9,6 +9,7 @@ members = [
     "crates/sentinel-permissions",
     "crates/sentinel-ipc",
     "crates/sentinel-bridge",
+    "crates/sentinel-device-host",
 ]
 
 [workspace.package]

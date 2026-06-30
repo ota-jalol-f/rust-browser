@@ -35,6 +35,10 @@ pub enum Error {
     #[error("storage error: {0}")]
     Storage(String),
 
+    /// A device (USB / serial) or native-host operation failed.
+    #[error("device error: {0}")]
+    Device(String),
+
     /// A navigation request was invalid — bad URL, empty history, or a cursor
     /// move with no destination.
     #[error("navigation error: {0}")]
