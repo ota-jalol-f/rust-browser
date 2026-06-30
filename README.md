@@ -58,8 +58,14 @@ Phased, each phase its own spec → plan → implementation:
 4. **USB / serial** — enumeration ✅ (real hardware); per-device I/O + IPC transport remain.
 5. **DLL host** — planned (libloading + bindgen, consent + sandbox).
 
-Remaining cross-cutting work: tokio IPC transport wiring the shell ↔ hosts, and the
-per-origin consent prompt UI.
+**End-to-end proven:** a granted page call to `window.native.usb.list()` flows JS → shim →
+Rust dispatcher → permission gate → real device-host enumeration (nusb) → JSON back to the
+page — verified headlessly against this machine's hardware.
+
+Remaining cross-cutting work: route DLL requests through the executor too; the per-origin
+consent prompt UI; per-device I/O (open/transfer); security hardening (CSP/TLS/injection
+lockdown); and an out-of-process tokio IPC transport for true host isolation (the executor
+seam and frame protocol are already in place).
 
 Plans live in [`docs/superpowers/plans/`](docs/superpowers/plans/).
 
