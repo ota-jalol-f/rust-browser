@@ -31,8 +31,9 @@ See the full design and honest threat model in
 | `sentinel-shell` | ✅ GUI runs (4 tests) | Window + overlay + navigation; opens google.com |
 | `sentinel-permissions` | ✅ verified (12 tests) | Per-origin capability consent gate (Ask = secure default) |
 | `sentinel-ipc` | ✅ verified (9 tests) | Typed host protocol + length-delimited framing |
-| `sentinel-bridge` | ✅ verified (6 tests) | Permission-gated request router (policy core) |
-| `sentinel-device-host` / `-dll-host` | ⏳ planned | Out-of-process USB/serial and DLL execution |
+| `sentinel-bridge` | ✅ verified (12 tests) | Permission-gated router + JSON dispatch; `window.native` end-to-end proven |
+| `sentinel-device-host` | ✅ enumeration on real HW (5 tests) | USB/serial via nusb + serialport; device I/O stubbed |
+| `sentinel-dll-host` | ⏳ planned | Out-of-process native DLL execution |
 
 ## Build & test
 
@@ -51,11 +52,14 @@ gate (CPU renderer + `win7` target via `build-std`), intentionally not blocking 
 ## Roadmap
 
 Phased, each phase its own spec → plan → implementation:
-1. **Core shell** (in progress) — engine + window + navigation.
-2. **Storage + security** (storage ✅; security hardening next).
-3. **Native bridge + permissions.**
-4. **USB / serial.**
-5. **DLL plugins.**
+1. **Core shell** ✅ — engine + window + navigation (GUI runs).
+2. **Storage + security** — storage ✅; security hardening (CSP/TLS/injection lockdown) remains.
+3. **Native bridge + permissions** ✅ — `window.native.*` gated end-to-end (verified headless).
+4. **USB / serial** — enumeration ✅ (real hardware); per-device I/O + IPC transport remain.
+5. **DLL host** — planned (libloading + bindgen, consent + sandbox).
+
+Remaining cross-cutting work: tokio IPC transport wiring the shell ↔ hosts, and the
+per-origin consent prompt UI.
 
 Plans live in [`docs/superpowers/plans/`](docs/superpowers/plans/).
 
