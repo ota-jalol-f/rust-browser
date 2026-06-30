@@ -829,6 +829,8 @@ dependencies = [
  "sentinel-core",
  "sentinel-ipc",
  "sentinel-permissions",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -854,7 +856,10 @@ dependencies = [
 name = "sentinel-engine"
 version = "0.1.0"
 dependencies = [
+ "sentinel-bridge",
  "sentinel-core",
+ "sentinel-ipc",
+ "sentinel-permissions",
  "ul-next",
 ]
 

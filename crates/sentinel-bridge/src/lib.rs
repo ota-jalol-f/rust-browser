@@ -15,6 +15,8 @@
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
 
+pub mod dispatch;
 pub mod router;
 
+pub use dispatch::{dispatch_json, DispatchReport};
 pub use router::{required_capability, BridgeOutcome, BridgeRouter};

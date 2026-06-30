@@ -8,3 +8,5 @@ license.workspace = true
 sentinel-core = { path = "../sentinel-core" }
 sentinel-permissions = { path = "../sentinel-permissions" }
 sentinel-ipc = { path = "../sentinel-ipc" }
+serde = { workspace = true }
+serde_json = "1"

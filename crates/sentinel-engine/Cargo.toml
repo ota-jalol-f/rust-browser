@@ -9,10 +9,14 @@ license.workspace = true
 # Ultralight SDK. Enable with `--features ultralight` on a machine where the
 # Ultralight shared libraries (UltralightCore, WebCore, Ultralight) are loadable.
 default = []
-ultralight = ["dep:ul-next"]
+ultralight = ["dep:ul-next", "dep:sentinel-bridge", "dep:sentinel-permissions", "dep:sentinel-ipc"]
 
 [dependencies]
 sentinel-core = { path = "../sentinel-core" }
+# Pulled in only with the `ultralight` feature (used by the JS bridge module).
+sentinel-bridge = { path = "../sentinel-bridge", optional = true }
+sentinel-permissions = { path = "../sentinel-permissions", optional = true }
+sentinel-ipc = { path = "../sentinel-ipc", optional = true }
 # `linked` feature => symbols resolved at build time against ul-next-sys's import
 # library (ul-next-sys downloads the matching SDK during its build). The runtime
 # `loaded`/GetProcAddress path fails on this SDK build with a symbol mismatch, so
