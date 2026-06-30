@@ -116,6 +116,40 @@ impl DllHost {
     }
 }
 
+impl sentinel_ipc::RequestExecutor for DllHost {
+    /// Execute a DLL request: `DllLoad` (hash-gated), `DllCall` (invoke), or
+    /// `DllUnload`. Non-DLL requests return an error — this host only owns DLLs.
+    ///
+    /// `DllCall::symbol` is informational for ABI v1 (the single `sentinel_invoke`
+    /// entry point is always used); `args` is the input passed to it.
+    fn execute(&mut self, request: sentinel_ipc::Request) -> sentinel_ipc::Response {
+        use sentinel_ipc::{Request, Response};
+        match request {
+            Request::DllLoad { path, sha256 } => {
+                let expected = if sha256.is_empty() { None } else { Some(sha256.as_str()) };
+                match self.load(std::path::Path::new(&path), expected) {
+                    Ok(handle) => Response::Opened { handle },
+                    Err(e) => Response::Error { message: e.to_string() },
+                }
+            }
+            Request::DllCall { handle, symbol: _, args } => match self.invoke(handle, &args) {
+                Ok(output) => Response::Data(output),
+                Err(e) => Response::Error { message: e.to_string() },
+            },
+            Request::DllUnload { handle } => {
+                if self.unload(handle) {
+                    Response::Ack
+                } else {
+                    Response::Error { message: format!("unknown dll handle {handle}") }
+                }
+            }
+            _ => Response::Error {
+                message: "DLL host only handles DLL requests".to_string(),
+            },
+        }
+    }
+}
+
 /// Lowercase hex SHA-256 of `bytes`.
 pub fn sha256_hex(bytes: &[u8]) -> String {
     let digest = Sha256::digest(bytes);
@@ -162,5 +196,29 @@ mod tests {
         let mut host = DllHost::new();
         assert!(!host.unload(123));
         assert!(host.is_empty());
+    }
+
+    #[test]
+    fn executor_rejects_non_dll_requests() {
+        use sentinel_ipc::{Request, RequestExecutor, Response};
+        let mut host = DllHost::new();
+        let r = host.execute(Request::UsbList);
+        assert!(matches!(r, Response::Error { .. }));
+    }
+
+    #[test]
+    fn executor_dll_call_unknown_handle_errors() {
+        use sentinel_ipc::{Request, RequestExecutor, Response};
+        let mut host = DllHost::new();
+        let r = host.execute(Request::DllCall { handle: 99, symbol: "sentinel_invoke".into(), args: vec![] });
+        assert!(matches!(r, Response::Error { .. }));
+    }
+
+    #[test]
+    fn executor_dll_load_missing_file_errors() {
+        use sentinel_ipc::{Request, RequestExecutor, Response};
+        let mut host = DllHost::new();
+        let r = host.execute(Request::DllLoad { path: "no_such_file.dll".into(), sha256: String::new() });
+        assert!(matches!(r, Response::Error { .. }));
     }
 }

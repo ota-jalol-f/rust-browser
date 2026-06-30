@@ -987,6 +987,7 @@ version = "0.1.0"
 dependencies = [
  "libloading",
  "sentinel-core",
+ "sentinel-ipc",
  "sha2",
  "tempfile",
 ]
@@ -998,9 +999,21 @@ dependencies = [
  "sentinel-bridge",
  "sentinel-core",
  "sentinel-device-host",
+ "sentinel-dll-host",
+ "sentinel-hosts",
  "sentinel-ipc",
  "sentinel-permissions",
  "ul-next",
+]
+
+[[package]]
+name = "sentinel-hosts"
+version = "0.1.0"
+dependencies = [
+ "sentinel-core",
+ "sentinel-device-host",
+ "sentinel-dll-host",
+ "sentinel-ipc",
 ]
 
 [[package]]

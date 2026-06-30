@@ -1,49 +1,76 @@
-//! End-to-end JS↔native bridge tests against a REAL device host executor:
-//! `window.native.usb.list()` must be permission-gated, and once granted must
-//! return the host's actual enumeration result back to page JavaScript.
-//! `#[ignore]` because it needs the Ultralight SDK at runtime; run with:
-//!   `cargo test -p sentinel-engine --features ultralight -- --ignored`
+//! End-to-end JS↔native bridge against the REAL combined host executor: a granted
+//! page must be able to enumerate USB via `window.native.usb.list()` AND load a
+//! real native DLL via `window.native.dll.load()`, both gated by permissions and
+//! both returning the host's actual result back to page JavaScript.
+//!
+//! `#[ignore]` because it needs the Ultralight SDK at runtime and the built
+//! test-plugin DLL. Run with:
+//!   cargo build -p sentinel-test-plugin
+//!   cargo test  -p sentinel-engine --features ultralight -- --ignored
 
 #![cfg(feature = "ultralight")]
 
+use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
 use sentinel_bridge::BridgeRouter;
 use sentinel_device_host::{DeviceHost, SystemBackend};
+use sentinel_dll_host::DllHost;
 use sentinel_engine::jsbridge::{run_bridge_probe, SharedExecutor, SharedRouter};
+use sentinel_hosts::HostRouter;
 use sentinel_permissions::{
     Capability, InMemoryBroker, Origin, PermissionBroker, PermissionState,
 };
 
-fn shared() -> (SharedRouter<InMemoryBroker>, SharedExecutor<DeviceHost<SystemBackend>>, Origin) {
-    let router = Arc::new(Mutex::new(BridgeRouter::new(InMemoryBroker::new())));
-    let executor = Arc::new(Mutex::new(DeviceHost::new(SystemBackend)));
-    let origin = Origin::parse("https://test.example").unwrap();
-    (router, executor, origin)
+fn test_plugin_path() -> PathBuf {
+    let manifest = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let name = if cfg!(windows) {
+        "sentinel_test_plugin.dll"
+    } else if cfg!(target_os = "macos") {
+        "libsentinel_test_plugin.dylib"
+    } else {
+        "libsentinel_test_plugin.so"
+    };
+    manifest.join("..").join("..").join("target").join("debug").join(name)
 }
 
-// NOTE: exactly one #[test] here — Ultralight's Renderer is once-per-process, and
-// run_bridge_probe creates one. The ungranted/needs_consent path is covered by the
-// sentinel-bridge unit tests; this proves the granted *execution* path end to end.
+// Exactly one #[test] here — Ultralight's Renderer is once-per-process.
 #[test]
-#[ignore = "requires Ultralight SDK shared libraries at runtime; run with --ignored"]
-fn granted_usb_list_executes_real_enumeration() {
-    let (router, executor, origin) = shared();
-    router
-        .lock()
-        .unwrap()
-        .broker_mut()
-        .set(&origin, Capability::Usb, PermissionState::Granted);
+#[ignore = "requires Ultralight SDK + built test-plugin; run with --ignored"]
+fn granted_page_uses_usb_and_loads_real_dll() {
+    let dll_path = test_plugin_path();
+    assert!(
+        dll_path.exists(),
+        "test plugin not built: {} (run: cargo build -p sentinel-test-plugin)",
+        dll_path.display()
+    );
 
-    // After granting, the page call runs the real DeviceHost enumeration and gets
-    // a usb_devices response back. (Device count varies by machine, so assert the
-    // shape, not a number.)
-    let probe = "(function(){ const r = window.native.usb.list(); \
-                 return r.status + ':' + (r.response && r.response.result) + ':' + \
-                 (Array.isArray(r.response.data) ? 'arr' : typeof r.response.data); })()";
-    let result = run_bridge_probe(router, executor, origin, probe).expect("probe");
+    // Combined executor: real device host + real DLL host.
+    let executor: SharedExecutor<HostRouter<SystemBackend>> =
+        Arc::new(Mutex::new(HostRouter::new(DeviceHost::new(SystemBackend), DllHost::new())));
+
+    let router: SharedRouter<InMemoryBroker> =
+        Arc::new(Mutex::new(BridgeRouter::new(InMemoryBroker::new())));
+    let origin = Origin::parse("https://test.example").unwrap();
+    {
+        let mut g = router.lock().unwrap();
+        g.broker_mut().set(&origin, Capability::Usb, PermissionState::Granted);
+        g.broker_mut().set(&origin, Capability::Dll, PermissionState::Granted);
+    }
+
+    // Escape the path into a JS string literal (backslashes on Windows).
+    let js_path = dll_path.to_string_lossy().replace('\\', "\\\\");
+    let probe = format!(
+        "(function(){{\
+           const u = window.native.usb.list();\
+           const d = window.native.dll.load('{js_path}', '');\
+           return u.status + '/' + u.response.result + '|' + d.status + '/' + d.response.result;\
+         }})()"
+    );
+
+    let result = run_bridge_probe(router, executor, origin, &probe).expect("probe");
     assert_eq!(
-        result, "ok:usb_devices:arr",
-        "granted call must execute the device host and return a usb_devices array"
+        result, "ok/usb_devices|ok/opened",
+        "granted page must enumerate USB and load a real DLL (returning a handle) end to end"
     );
 }

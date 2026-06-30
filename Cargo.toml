@@ -12,6 +12,7 @@ members = [
     "crates/sentinel-device-host",
     "crates/sentinel-dll-host",
     "crates/sentinel-test-plugin",
+    "crates/sentinel-hosts",
 ]
 
 [workspace.package]
