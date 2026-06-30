@@ -1038,13 +1038,8 @@ dependencies = [
 name = "sentinel-shell"
 version = "0.1.0"
 dependencies = [
- "sentinel-bridge",
  "sentinel-core",
- "sentinel-device-host",
- "sentinel-dll-host",
  "sentinel-engine",
- "sentinel-hosts",
- "sentinel-permissions",
  "ul-next",
 ]
 

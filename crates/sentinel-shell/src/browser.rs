@@ -63,16 +63,8 @@ pub use gui::Browser;
 
 #[cfg(feature = "ultralight")]
 mod gui {
-    use std::sync::{Arc, Mutex};
-
     use super::normalize_url;
-    use sentinel_bridge::BridgeRouter;
     use sentinel_core::{BrowserConfig, Error, History, Result};
-    use sentinel_device_host::{DeviceHost, SystemBackend};
-    use sentinel_dll_host::DllHost;
-    use sentinel_engine::jsbridge;
-    use sentinel_hosts::HostRouter;
-    use sentinel_permissions::{InMemoryBroker, Origin};
     use ul_next::{
         app::{App, Settings},
         window::{Window, WindowFlags},
@@ -80,13 +72,7 @@ mod gui {
         Library,
     };
 
-    /// Shared permission router (broker is `Ask` by default).
-    type Router = Arc<Mutex<BridgeRouter<InMemoryBroker>>>;
-    /// Shared combined host executor (USB/serial via device host, DLL via DLL host).
-    type Executor = Arc<Mutex<HostRouter<SystemBackend>>>;
-
-    /// A single-window, single-overlay browser driven by a [`History`] model, with
-    /// the `window.native` bridge installed on every page's DOM-ready.
+    /// A single-window, single-overlay browser driven by a [`History`] model.
     ///
     /// Owns the Ultralight objects for their whole lifetime: dropping `App` tears
     /// down the renderer and run loop, so all three are kept as fields.
@@ -99,12 +85,6 @@ mod gui {
         window: Window,
         app: App,
         history: History,
-        // The permission broker/router and host executor, shared with the page
-        // callback. Kept here so a future consent UI / settings view can reach them.
-        #[allow(dead_code)]
-        router: Router,
-        #[allow(dead_code)]
-        executor: Executor,
     }
 
     impl Browser {
@@ -152,33 +132,7 @@ mod gui {
                 .create_overlay(window.width(), window.height(), 0, 0)
                 .ok_or_else(|| Error::Engine("create_overlay returned None".into()))?;
 
-            // The native-capability stack: a permission router (Ask by default) and
-            // the combined host executor (USB/serial + DLL).
-            let router: Router = Arc::new(Mutex::new(BridgeRouter::new(InMemoryBroker::new())));
-            let executor: Executor =
-                Arc::new(Mutex::new(HostRouter::new(DeviceHost::new(SystemBackend), DllHost::new())));
-
-            // Install `window.native` on every page once its DOM is ready (the JS
-            // context is reset on each navigation, so this must re-run per load).
-            {
-                let router = router.clone();
-                let executor = executor.clone();
-                overlay.view().set_dom_ready_callback(move |view, _frame_id, is_main_frame, url| {
-                    if !is_main_frame {
-                        return;
-                    }
-                    // Only real origins get the native API; about:blank etc. do not.
-                    if let Ok(origin) = Origin::parse(&url) {
-                        if let Err(e) =
-                            jsbridge::install_native(view, router.clone(), executor.clone(), origin)
-                        {
-                            eprintln!("failed to install window.native: {e}");
-                        }
-                    }
-                });
-            }
-
-            Ok(Self { overlay, window, app, history: History::new(), router, executor })
+            Ok(Self { overlay, window, app, history: History::new() })
         }
 
         /// Navigate to `input` (normalized), recording it in history.
