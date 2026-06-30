@@ -7,16 +7,15 @@
 #[cfg(feature = "ultralight")]
 fn main() -> sentinel_core::Result<()> {
     use sentinel_core::BrowserConfig;
+    use sentinel_shell::dashboard::DASHBOARD_HTML;
 
-    // Open Google on startup (overriding the about:blank default).
-    let config = BrowserConfig {
-        home_url: "https://www.google.com".into(),
-        ..BrowserConfig::default()
-    };
+    let config = BrowserConfig::default();
     config.validate()?;
 
-    let mut browser = sentinel_shell::browser::Browser::new(&config)?;
-    browser.go(&config.home_url)?;
+    let browser = sentinel_shell::browser::Browser::new(&config)?;
+    // Open the built-in dashboard: a visible page proving rendering + the live
+    // window.native bridge (device list + JS console) the user can verify by eye.
+    browser.show_html(DASHBOARD_HTML)?;
     browser.run(); // blocks until the window closes
     Ok(())
 }

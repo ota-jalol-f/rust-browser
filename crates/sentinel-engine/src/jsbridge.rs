@@ -84,6 +84,7 @@ where
              serial: {{ list: () => op({{op:'serial_list'}}) }},\
              dll:    {{ load: (path, sha256) => op({{op:'dll_load', path, sha256}}) }}\
            }};\
+           if (typeof window.onSentinelReady === 'function') {{ try {{ window.onSentinelReady(); }} catch (e) {{}} }}\
          }})();",
         version = BRIDGE_VERSION
     );
@@ -93,6 +94,50 @@ where
     {
         Ok(_) => Ok(()),
         Err(js_exception) => Err(Error::Engine(format!("bridge shim threw: {js_exception}"))),
+    }
+}
+
+/// Reproduce the live-GUI install path headlessly: install `window.native` from
+/// inside a `set_dom_ready_callback` (the same hook the shell uses), then verify
+/// it took effect. This tells us whether the shell's DOM-ready install crash is
+/// reproducible with the CPU renderer (here) or specific to AppCore/GPU.
+///
+/// Returns `window.native.version` (expected [`BRIDGE_VERSION`]).
+///
+/// # Errors
+/// [`Error::Engine`] on engine/eval failure.
+pub fn prove_dom_ready_install<B, E>(
+    router: SharedRouter<B>,
+    executor: SharedExecutor<E>,
+    origin: Origin,
+) -> Result<String>
+where
+    B: PermissionBroker + 'static,
+    E: RequestExecutor + 'static,
+{
+    let renderer = crate::headless::init_renderer()?;
+    let view = crate::headless::create_cpu_view(&renderer, 16, 16)?;
+
+    {
+        let router = router.clone();
+        let executor = executor.clone();
+        view.set_dom_ready_callback(move |view, _frame_id, is_main_frame, _url| {
+            if is_main_frame {
+                let _ = install_native(view, router.clone(), executor.clone(), origin.clone());
+            }
+        });
+    }
+
+    view.load_html("<html><body></body></html>")
+        .map_err(|e| Error::Engine(format!("load_html: {e:?}")))?;
+    crate::headless::pump_until_loaded(&renderer, &view);
+
+    match view
+        .evaluate_script("window.native ? window.native.version : 'NO_NATIVE'")
+        .map_err(|e| Error::Engine(format!("version probe eval failed: {e:?}")))?
+    {
+        Ok(s) => Ok(s),
+        Err(js_exception) => Err(Error::Engine(format!("version probe threw: {js_exception}"))),
     }
 }
 

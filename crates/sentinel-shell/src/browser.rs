@@ -63,8 +63,16 @@ pub use gui::Browser;
 
 #[cfg(feature = "ultralight")]
 mod gui {
+    use std::sync::{Arc, Mutex};
+
     use super::normalize_url;
+    use sentinel_bridge::BridgeRouter;
     use sentinel_core::{BrowserConfig, Error, History, Result};
+    use sentinel_device_host::{DeviceHost, SystemBackend};
+    use sentinel_dll_host::DllHost;
+    use sentinel_engine::jsbridge;
+    use sentinel_hosts::HostRouter;
+    use sentinel_permissions::{Capability, InMemoryBroker, Origin, PermissionBroker, PermissionState};
     use ul_next::{
         app::{App, Settings},
         window::{Window, WindowFlags},
@@ -72,10 +80,20 @@ mod gui {
         Library,
     };
 
-    /// A single-window, single-overlay browser driven by a [`History`] model.
+    /// Shared permission router (broker is `Ask` by default).
+    type Router = Arc<Mutex<BridgeRouter<InMemoryBroker>>>;
+    /// Shared combined host executor (USB/serial via device host, DLL via DLL host).
+    type Executor = Arc<Mutex<HostRouter<SystemBackend>>>;
+
+    /// Origin assigned to the built-in dashboard (which has no real URL). It is
+    /// pre-granted every capability so the dashboard can show live device data.
+    const BUILTIN_ORIGIN: &str = "sentinel://home";
+
+    /// A single-window, single-overlay browser driven by a [`History`] model, with
+    /// the `window.native` bridge installed on every page's DOM-ready.
     ///
     /// Owns the Ultralight objects for their whole lifetime: dropping `App` tears
-    /// down the renderer and run loop, so all three are kept as fields.
+    /// down the renderer and run loop, so all are kept as fields.
     pub struct Browser {
         // Field order matters for drop: overlay before window before app.
         overlay: Overlay,
@@ -85,6 +103,12 @@ mod gui {
         window: Window,
         app: App,
         history: History,
+        // Permission router + host executor, shared with the page callback and kept
+        // for a future consent UI / settings view.
+        #[allow(dead_code)]
+        router: Router,
+        #[allow(dead_code)]
+        executor: Executor,
     }
 
     impl Browser {
@@ -104,9 +128,13 @@ mod gui {
             // Windows, so "." points at the exe directory — where build.rs stages
             // the SDK `resources/` folder (icudt67l.dat, cacert.pem). This is
             // CWD-independent: no need to change the process working directory.
+            // Force the CPU renderer: the GPU/AppCore path crashed when installing
+            // the JS bridge from DOM-ready; the CPU path is proven (and is also the
+            // Windows 7 path). Fine for a lightweight browser.
             let settings = Settings::start()
                 .app_name("Sentinel")
                 .filesystem_path(".")
+                .force_cpu_renderer(true)
                 .build(lib.clone())
                 .ok_or_else(|| Error::Engine("settings build returned None".into()))?;
 
@@ -132,7 +160,58 @@ mod gui {
                 .create_overlay(window.width(), window.height(), 0, 0)
                 .ok_or_else(|| Error::Engine("create_overlay returned None".into()))?;
 
-            Ok(Self { overlay, window, app, history: History::new() })
+            // Permission router + combined host executor (USB/serial + DLL). The
+            // built-in dashboard origin is pre-granted so it can show live data.
+            let router: Router = Arc::new(Mutex::new(BridgeRouter::new(InMemoryBroker::new())));
+            let executor: Executor =
+                Arc::new(Mutex::new(HostRouter::new(DeviceHost::new(SystemBackend), DllHost::new())));
+            if let Ok(builtin) = Origin::parse(BUILTIN_ORIGIN) {
+                let mut g = router.lock().unwrap_or_else(|p| p.into_inner());
+                for cap in Capability::ALL {
+                    g.broker_mut().set(&builtin, cap, PermissionState::Granted);
+                }
+            }
+
+            // Install `window.native` on every page's DOM-ready (the JS context
+            // resets per navigation). Wrapped in catch_unwind so a failure can never
+            // unwind across Ultralight's C callback boundary and crash the browser.
+            {
+                let router = router.clone();
+                let executor = executor.clone();
+                overlay.view().set_dom_ready_callback(move |view, _frame_id, is_main_frame, url| {
+                    if !is_main_frame {
+                        return;
+                    }
+                    // Real pages use their own origin (Ask by default); the built-in
+                    // dashboard has no URL, so it falls back to the trusted origin.
+                    let origin = Origin::parse(&url)
+                        .or_else(|_| Origin::parse(BUILTIN_ORIGIN))
+                        .expect("BUILTIN_ORIGIN is a valid origin");
+                    let router = router.clone();
+                    let executor = executor.clone();
+                    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                        jsbridge::install_native(view, router, executor, origin)
+                    }));
+                    match result {
+                        Ok(Ok(())) => {}
+                        Ok(Err(e)) => eprintln!("window.native install error: {e}"),
+                        Err(_) => eprintln!("window.native install panicked (contained)"),
+                    }
+                });
+            }
+
+            Ok(Self { overlay, window, app, history: History::new(), router, executor })
+        }
+
+        /// Display a self-contained HTML string (used for the built-in dashboard).
+        ///
+        /// # Errors
+        /// [`Error::Engine`] if the view rejects the HTML.
+        pub fn show_html(&self, html: &str) -> Result<()> {
+            self.overlay
+                .view()
+                .load_html(html)
+                .map_err(|e| Error::Engine(format!("load_html failed: {e:?}")))
         }
 
         /// Navigate to `input` (normalized), recording it in history.

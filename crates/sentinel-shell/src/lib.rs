@@ -7,3 +7,4 @@
 #![warn(missing_docs)]
 
 pub mod browser;
+pub mod dashboard;
