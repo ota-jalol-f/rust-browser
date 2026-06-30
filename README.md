@@ -27,9 +27,11 @@ See the full design and honest threat model in
 | `sentinel-core` | ✅ verified (12 tests) | Error/Result, `BrowserConfig`, navigation `History` |
 | `sentinel-crypto` | ✅ verified (11 tests) | Argon2id KDF + AES-256-GCM at-rest encryption |
 | `sentinel-storage` | ✅ verified (6 tests) | Encrypted SQLite store: history + bookmarks |
-| `sentinel-engine` | ✅ compiles vs real `ul-next` | Ultralight integration (headless CPU render); runtime render needs the SDK |
-| `sentinel-shell` | ✅ compiles vs real `ul-next` (4 tests) | GUI binary: window + overlay + navigation; live render needs the SDK |
-| `sentinel-ipc` / `-permissions` / `-bridge` | ⏳ planned | `window.native.*`, consent broker, host IPC |
+| `sentinel-engine` | ✅ render + JS bridge verified (SDK tests) | Ultralight integration; headless CPU render and `window.native` JS↔Rust bridge both proven |
+| `sentinel-shell` | ✅ GUI runs (4 tests) | Window + overlay + navigation; opens google.com |
+| `sentinel-permissions` | ✅ verified (12 tests) | Per-origin capability consent gate (Ask = secure default) |
+| `sentinel-ipc` | ✅ verified (9 tests) | Typed host protocol + length-delimited framing |
+| `sentinel-bridge` | ✅ verified (6 tests) | Permission-gated request router (policy core) |
 | `sentinel-device-host` / `-dll-host` | ⏳ planned | Out-of-process USB/serial and DLL execution |
 
 ## Build & test
