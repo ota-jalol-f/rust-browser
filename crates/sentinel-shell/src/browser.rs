@@ -215,7 +215,11 @@ mod gui {
             // window.native is proven by the headless engine tests. With the env var
             // set, install_native writes step markers to sentinel-bridge-debug.log so
             // the exact crashing native call can be identified.
-            if std::env::var_os("SENTINEL_BRIDGE").is_some() {
+            // DIAGNOSTIC: hard-disabled (`false &&`) to remove the env-var confound —
+            // the user's SENTINEL_BRIDGE persists across shells. If the browser now
+            // works, the DOM-ready bridge install is confirmed as the crash. Re-enable
+            // by restoring the env check once the install path is fixed.
+            if false && std::env::var_os("SENTINEL_BRIDGE").is_some() {
                 let router = router.clone();
                 let executor = executor.clone();
                 overlay.view().set_dom_ready_callback(move |view, _frame_id, is_main_frame, url| {
@@ -260,6 +264,7 @@ mod gui {
         ///
         /// # Errors
         /// [`Error::Engine`] if the view rejects the URL.
+        #[allow(dead_code)]
         pub fn open_url(&self, url: &str) -> Result<()> {
             self.overlay
                 .view()

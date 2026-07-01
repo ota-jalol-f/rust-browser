@@ -19,24 +19,14 @@ fn main() -> sentinel_core::Result<()> {
     startup_log("main: config validated; before Browser::new");
 
     let browser = sentinel_shell::browser::Browser::new(&config)?;
-    startup_log("main: after Browser::new; before content load");
+    startup_log("main: after Browser::new; before show_html");
 
-    // Diagnostic content selector to isolate the app.run() crash:
-    //   SENTINEL_CONTENT=url     -> load a real URL (proven path)
-    //   SENTINEL_CONTENT=minimal -> load_html of a trivial page
-    //   (unset)                  -> the full built-in dashboard
-    let content = std::env::var("SENTINEL_CONTENT").unwrap_or_default();
-    let bridge_on = std::env::var_os("SENTINEL_BRIDGE").is_some();
-    startup_log(&format!("main: content mode = {content:?}, SENTINEL_BRIDGE set = {bridge_on}"));
-    match content.as_str() {
-        "url" => browser.open_url("https://example.com")?,
-        "minimal" => browser.show_html(
-            "<html><body style=\"background:#111;color:#eee;font-family:sans-serif\">\
-             <h1>Sentinel minimal OK</h1><p>load_html works.</p></body></html>",
-        )?,
-        _ => browser.show_html(DASHBOARD_HTML)?,
-    }
-    startup_log("main: after content load; before app.run()");
+    // Show the built-in dashboard: a visible page proving rendering, with a working
+    // JS console. (The live window.native bridge is currently disabled in the shell
+    // — its DOM-ready install crashes on AppCore overlay views; it is proven by the
+    // headless engine tests and being fixed separately.)
+    browser.show_html(DASHBOARD_HTML)?;
+    startup_log("main: after show_html; before app.run()");
 
     browser.run(); // blocks until the window closes
     startup_log("main: app.run() returned (window closed)");
