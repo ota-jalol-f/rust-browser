@@ -3,3 +3,5 @@
 /sdk
 .remember/
 ultralight.log
+sentinel-startup.log
+sentinel-bridge-debug.log
