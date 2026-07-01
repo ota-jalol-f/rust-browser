@@ -21,11 +21,12 @@ fn main() -> sentinel_core::Result<()> {
     let browser = sentinel_shell::browser::Browser::new(&config)?;
     startup_log("main: after Browser::new; before show_html");
 
-    // Show the built-in dashboard: a visible page proving rendering, with a working
-    // JS console. (The live window.native bridge is currently disabled in the shell
-    // — its DOM-ready install crashes on AppCore overlay views; it is proven by the
-    // headless engine tests and being fixed separately.)
-    browser.show_html(DASHBOARD_HTML)?;
+    // Enumerate real devices in Rust and bake the snapshot into the dashboard, so
+    // the page shows live hardware without the (disabled) JS bridge.
+    let devices = browser.device_snapshot_json();
+    startup_log("main: device snapshot taken");
+    let html = DASHBOARD_HTML.replace(sentinel_shell::dashboard::DEVICES_PLACEHOLDER, &devices);
+    browser.show_html(&html)?;
     startup_log("main: after show_html; before app.run()");
 
     browser.run(); // blocks until the window closes

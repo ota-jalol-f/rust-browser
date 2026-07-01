@@ -1044,7 +1044,9 @@ dependencies = [
  "sentinel-dll-host",
  "sentinel-engine",
  "sentinel-hosts",
+ "sentinel-ipc",
  "sentinel-permissions",
+ "serde_json",
  "ul-next",
 ]
 

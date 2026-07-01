@@ -23,6 +23,8 @@ ultralight = [
     "dep:sentinel-permissions",
     "dep:sentinel-device-host",
     "dep:sentinel-dll-host",
+    "dep:sentinel-ipc",
+    "dep:serde_json",
 ]
 
 [dependencies]
@@ -35,3 +37,5 @@ sentinel-hosts = { path = "../sentinel-hosts", optional = true }
 sentinel-permissions = { path = "../sentinel-permissions", optional = true }
 sentinel-device-host = { path = "../sentinel-device-host", optional = true }
 sentinel-dll-host = { path = "../sentinel-dll-host", optional = true }
+sentinel-ipc = { path = "../sentinel-ipc", optional = true }
+serde_json = { version = "1", optional = true }

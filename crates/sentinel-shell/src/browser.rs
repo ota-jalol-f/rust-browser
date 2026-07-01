@@ -88,6 +88,7 @@ mod gui {
     use sentinel_dll_host::DllHost;
     use sentinel_engine::jsbridge;
     use sentinel_hosts::HostRouter;
+    use sentinel_ipc::{Request, RequestExecutor};
     use sentinel_permissions::{Capability, InMemoryBroker, Origin, PermissionBroker, PermissionState};
     use ul_next::{
         app::{App, Settings},
@@ -258,6 +259,18 @@ mod gui {
                 .view()
                 .load_html(html)
                 .map_err(|e| Error::Engine(format!("load_html failed: {e:?}")))
+        }
+
+        /// Enumerate USB + serial devices via the host executor and return a JSON
+        /// snapshot `{"usb": <Response>, "serial": <Response>}` for injection into
+        /// the dashboard. Runs entirely in Rust — no JS bridge needed.
+        pub fn device_snapshot_json(&self) -> String {
+            let mut exec = self.executor.lock().unwrap_or_else(|p| p.into_inner());
+            let usb = exec.execute(Request::UsbList);
+            let serial = exec.execute(Request::SerialList);
+            let usb_json = serde_json::to_string(&usb).unwrap_or_else(|_| "null".into());
+            let serial_json = serde_json::to_string(&serial).unwrap_or_else(|_| "null".into());
+            format!("{{\"usb\":{usb_json},\"serial\":{serial_json}}}")
         }
 
         /// Load a URL directly (no history), for diagnostics/startup.
