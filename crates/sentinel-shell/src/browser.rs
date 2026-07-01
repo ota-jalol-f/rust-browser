@@ -256,6 +256,17 @@ mod gui {
                 .map_err(|e| Error::Engine(format!("load_html failed: {e:?}")))
         }
 
+        /// Load a URL directly (no history), for diagnostics/startup.
+        ///
+        /// # Errors
+        /// [`Error::Engine`] if the view rejects the URL.
+        pub fn open_url(&self, url: &str) -> Result<()> {
+            self.overlay
+                .view()
+                .load_url(url)
+                .map_err(|e| Error::Engine(format!("load_url failed: {e:?}")))
+        }
+
         /// Navigate to `input` (normalized), recording it in history.
         ///
         /// # Errors
