@@ -14,11 +14,67 @@ use sentinel_core::{Error, Result};
 use sentinel_ipc::RequestExecutor;
 use sentinel_permissions::{Origin, PermissionBroker};
 use ul_next::{
-    event::{MouseButton, MouseEvent, MouseEventType},
+    event::{
+        KeyEvent, KeyEventCreationInfo, KeyEventModifiers, KeyEventType, MouseButton, MouseEvent,
+        MouseEventType,
+    },
+    key_code::VirtualKeyCode,
     renderer::Renderer,
     view::View,
     Library,
 };
+
+/// Editing / navigation keys that don't produce text but drive input fields.
+/// The shell maps its windowing library's named keys onto these.
+#[derive(Debug, Clone, Copy)]
+pub enum SpecialKey {
+    /// Backspace.
+    Backspace,
+    /// Enter / Return.
+    Enter,
+    /// Tab.
+    Tab,
+    /// Escape.
+    Escape,
+    /// Forward delete.
+    Delete,
+    /// Left arrow.
+    Left,
+    /// Right arrow.
+    Right,
+    /// Up arrow.
+    Up,
+    /// Down arrow.
+    Down,
+    /// Home.
+    Home,
+    /// End.
+    End,
+    /// Page up.
+    PageUp,
+    /// Page down.
+    PageDown,
+}
+
+impl SpecialKey {
+    fn virtual_key(self) -> VirtualKeyCode {
+        match self {
+            SpecialKey::Backspace => VirtualKeyCode::Back,
+            SpecialKey::Enter => VirtualKeyCode::Return,
+            SpecialKey::Tab => VirtualKeyCode::Tab,
+            SpecialKey::Escape => VirtualKeyCode::Escape,
+            SpecialKey::Delete => VirtualKeyCode::Delete,
+            SpecialKey::Left => VirtualKeyCode::Left,
+            SpecialKey::Right => VirtualKeyCode::Right,
+            SpecialKey::Up => VirtualKeyCode::Up,
+            SpecialKey::Down => VirtualKeyCode::Down,
+            SpecialKey::Home => VirtualKeyCode::Home,
+            SpecialKey::End => VirtualKeyCode::End,
+            SpecialKey::PageUp => VirtualKeyCode::Prior,
+            SpecialKey::PageDown => VirtualKeyCode::Next,
+        }
+    }
+}
 
 use crate::jsbridge::{SharedExecutor, SharedRouter};
 
@@ -135,6 +191,44 @@ impl PageView {
         let ty = if pressed { MouseEventType::MouseDown } else { MouseEventType::MouseUp };
         if let Ok(ev) = MouseEvent::new(self.lib.clone(), ty, x, y, MouseButton::Left) {
             self.view.fire_mouse_event(ev);
+        }
+    }
+
+    /// Insert `text` (a typed character or sequence) into the focused input via a
+    /// `Char` key event — the only key type that generates text in Ultralight.
+    pub fn key_char(&self, text: &str) {
+        let info = KeyEventCreationInfo {
+            ty: KeyEventType::Char,
+            modifiers: KeyEventModifiers { alt: false, ctrl: false, meta: false, shift: false },
+            virtual_key_code: VirtualKeyCode::Unknown,
+            native_key_code: 0,
+            text,
+            unmodified_text: text,
+            is_keypad: false,
+            is_auto_repeat: false,
+            is_system_key: false,
+        };
+        if let Ok(ev) = KeyEvent::new(self.lib.clone(), info) {
+            self.view.fire_key_event(ev);
+        }
+    }
+
+    /// Forward an editing/navigation key press or release (backspace, enter, arrows…)
+    /// as a raw key event so input fields respond.
+    pub fn key_special(&self, key: SpecialKey, pressed: bool) {
+        let info = KeyEventCreationInfo {
+            ty: if pressed { KeyEventType::RawKeyDown } else { KeyEventType::KeyUp },
+            modifiers: KeyEventModifiers { alt: false, ctrl: false, meta: false, shift: false },
+            virtual_key_code: key.virtual_key(),
+            native_key_code: 0,
+            text: "",
+            unmodified_text: "",
+            is_keypad: false,
+            is_auto_repeat: false,
+            is_system_key: false,
+        };
+        if let Ok(ev) = KeyEvent::new(self.lib.clone(), info) {
+            self.view.fire_key_event(ev);
         }
     }
 }

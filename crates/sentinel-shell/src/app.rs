@@ -18,14 +18,35 @@ use sentinel_bridge::BridgeRouter;
 use sentinel_core::{BrowserConfig, Error, Result};
 use sentinel_device_host::{DeviceHost, SystemBackend};
 use sentinel_dll_host::DllHost;
-use sentinel_engine::page::PageView;
+use sentinel_engine::page::{PageView, SpecialKey};
 use sentinel_hosts::HostRouter;
 use sentinel_permissions::{Capability, InMemoryBroker, Origin, PermissionBroker, PermissionState};
 use winit::application::ApplicationHandler;
 use winit::dpi::{LogicalSize, PhysicalPosition};
 use winit::event::{ElementState, MouseButton, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, EventLoop};
+use winit::keyboard::{Key, NamedKey};
 use winit::window::{Window, WindowId};
+
+/// Map a winit named key to the engine's editing/navigation key, if applicable.
+fn map_named_key(named: &NamedKey) -> Option<SpecialKey> {
+    Some(match named {
+        NamedKey::Backspace => SpecialKey::Backspace,
+        NamedKey::Enter => SpecialKey::Enter,
+        NamedKey::Tab => SpecialKey::Tab,
+        NamedKey::Escape => SpecialKey::Escape,
+        NamedKey::Delete => SpecialKey::Delete,
+        NamedKey::ArrowLeft => SpecialKey::Left,
+        NamedKey::ArrowRight => SpecialKey::Right,
+        NamedKey::ArrowUp => SpecialKey::Up,
+        NamedKey::ArrowDown => SpecialKey::Down,
+        NamedKey::Home => SpecialKey::Home,
+        NamedKey::End => SpecialKey::End,
+        NamedKey::PageUp => SpecialKey::PageUp,
+        NamedKey::PageDown => SpecialKey::PageDown,
+        _ => return None,
+    })
+}
 
 /// Shared permission router (broker is `Ask` by default).
 type Router = Arc<Mutex<BridgeRouter<InMemoryBroker>>>;
@@ -179,6 +200,26 @@ impl ApplicationHandler for App {
                             self.cursor.y as i32,
                             state == ElementState::Pressed,
                         );
+                    }
+                }
+            }
+            WindowEvent::KeyboardInput { event, .. } => {
+                if let Some(page) = &self.page {
+                    let pressed = event.state == ElementState::Pressed;
+                    // Editing / navigation keys → raw key events.
+                    if let Key::Named(named) = &event.logical_key {
+                        if let Some(sk) = map_named_key(named) {
+                            page.key_special(sk, pressed);
+                        }
+                    }
+                    // Text-producing keys → Char events (on press), skipping the
+                    // control chars already delivered as special keys above.
+                    if pressed {
+                        if let Some(text) = event.text.as_ref() {
+                            if !text.chars().all(char::is_control) {
+                                page.key_char(text);
+                            }
+                        }
                     }
                 }
             }
