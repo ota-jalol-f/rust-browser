@@ -143,13 +143,12 @@ mod gui {
             // Windows, so "." points at the exe directory — where build.rs stages
             // the SDK `resources/` folder (icudt67l.dat, cacert.pem). This is
             // CWD-independent: no need to change the process working directory.
-            // Force the CPU renderer: the GPU/AppCore path crashed when installing
-            // the JS bridge from DOM-ready; the CPU path is proven (and is also the
-            // Windows 7 path). Fine for a lightweight browser.
+            // Use AppCore's default GPU painting (forcing the CPU renderer here
+            // crashes AppCore's overlay painting — AppCore manages GPU painting for
+            // overlays itself, per its docs/examples).
             let settings = Settings::start()
                 .app_name("Sentinel")
                 .filesystem_path(".")
-                .force_cpu_renderer(true)
                 .build(lib.clone())
                 .ok_or_else(|| Error::Engine("settings build returned None".into()))?;
 
