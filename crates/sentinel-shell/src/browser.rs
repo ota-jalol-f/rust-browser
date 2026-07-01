@@ -58,6 +58,22 @@ mod tests {
     }
 }
 
+/// Diagnostic (temporary): append a startup step to `sentinel-startup.log` in the
+/// CWD, flushed immediately, so that if the NEXT step crashes natively the last
+/// logged line pinpoints exactly which setup call failed. Always active while we
+/// isolate the GUI crash; remove once resolved.
+pub fn startup_log(msg: &str) {
+    use std::io::Write;
+    if let Ok(mut f) = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open("sentinel-startup.log")
+    {
+        let _ = writeln!(f, "{msg}");
+        let _ = f.flush();
+    }
+}
+
 #[cfg(feature = "ultralight")]
 pub use gui::Browser;
 
@@ -134,10 +150,12 @@ mod gui {
         /// [`Error::Engine`] if the libraries cannot be loaded or any Ultralight
         /// object fails to construct.
         pub fn new(config: &BrowserConfig) -> Result<Self> {
+            super::startup_log("new: before Library::linked");
             // Linked mode: Ultralight + AppCore symbols are resolved at build time
             // against ul-next-sys's import library (the runtime GetProcAddress path
             // fails on this SDK build). The DLLs are staged next to the exe.
             let lib = Library::linked();
+            super::startup_log("new: after Library::linked");
 
             // AppCore resolves `filesystem_path` RELATIVE TO THE EXECUTABLE on
             // Windows, so "." points at the exe directory — where build.rs stages
@@ -152,8 +170,10 @@ mod gui {
                 .build(lib.clone())
                 .ok_or_else(|| Error::Engine("settings build returned None".into()))?;
 
+            super::startup_log("new: after Settings::build; before App::new");
             let app = App::new(lib.clone(), Some(settings), None)
                 .map_err(|e| Error::Engine(format!("app create: {e:?}")))?;
+            super::startup_log("new: after App::new; before create_window");
 
             let window = app
                 .create_window(
@@ -169,10 +189,12 @@ mod gui {
                     },
                 )
                 .ok_or_else(|| Error::Engine("create_window returned None".into()))?;
+            super::startup_log("new: after create_window; before create_overlay");
 
             let overlay = window
                 .create_overlay(window.width(), window.height(), 0, 0)
                 .ok_or_else(|| Error::Engine("create_overlay returned None".into()))?;
+            super::startup_log("new: after create_overlay");
 
             // Permission router + combined host executor (USB/serial + DLL). The
             // built-in dashboard origin is pre-granted so it can show live data.
@@ -219,6 +241,7 @@ mod gui {
                 });
             }
 
+            super::startup_log("new: returning Browser (bridge registered or skipped)");
             Ok(Self { overlay, window, app, history: History::new(), router, executor })
         }
 
