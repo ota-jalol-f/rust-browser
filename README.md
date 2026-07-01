@@ -27,13 +27,19 @@ See the full design and honest threat model in
 | `sentinel-core` | ✅ verified (12 tests) | Error/Result, `BrowserConfig`, navigation `History` |
 | `sentinel-crypto` | ✅ verified (11 tests) | Argon2id KDF + AES-256-GCM at-rest encryption |
 | `sentinel-storage` | ✅ verified (6 tests) | Encrypted SQLite store: history + bookmarks |
-| `sentinel-engine` | ✅ render + JS bridge verified (SDK tests) | Ultralight integration; headless CPU render and `window.native` JS↔Rust bridge both proven |
-| `sentinel-shell` | ✅ GUI runs (4 tests) | Window + overlay + navigation; opens google.com |
+| `sentinel-engine` | ✅ render + JS bridge verified | Ultralight (low-level Renderer). `PageView`: render to pixels, input, live `window.native` install |
+| `sentinel-shell` | ✅ GUI runs live | winit window + softbuffer present; mouse + keyboard; dashboard with live device list + JS console + **live `window.native`** |
 | `sentinel-permissions` | ✅ verified (12 tests) | Per-origin capability consent gate (Ask = secure default) |
-| `sentinel-ipc` | ✅ verified (9 tests) | Typed host protocol + length-delimited framing |
-| `sentinel-bridge` | ✅ verified (12 tests) | Permission-gated router + JSON dispatch; `window.native` end-to-end proven |
-| `sentinel-device-host` | ✅ enumeration on real HW (5 tests) | USB/serial via nusb + serialport; device I/O stubbed |
-| `sentinel-dll-host` | ⏳ planned | Out-of-process native DLL execution |
+| `sentinel-ipc` | ✅ verified (12 tests) | Typed host protocol + framing + `RequestExecutor` seam |
+| `sentinel-bridge` | ✅ verified (12 tests) | Permission-gated router + JSON dispatch; `window.native` end-to-end |
+| `sentinel-device-host` | ✅ real HW (5 tests) | USB/serial via nusb + serialport |
+| `sentinel-dll-host` | ✅ real DLL (7 tests) | Native DLL load/invoke via libloading, SHA-256 gated |
+| `sentinel-hosts` | ✅ verified (3 tests) | Combines device + DLL hosts into one executor |
+
+**GUI architecture:** the window is winit + softbuffer presenting the engine's low-level
+Ultralight `Renderer` (NOT AppCore — its overlay views crash on the JS-bridge callback). This
+is what makes the live `window.native` bridge work in the GUI. Run with
+`cargo run -p sentinel-shell --features ultralight`.
 
 ## Build & test
 
