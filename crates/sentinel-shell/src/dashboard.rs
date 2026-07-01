@@ -135,6 +135,21 @@ pub const DASHBOARD_HTML: &str = r##"<!DOCTYPE html>
 
   // If the bridge was already installed before this script ran, populate now.
   if (window.native) { window.onSentinelReady(); }
+
+  // If window.native never arrives (bridge disabled by default), say so clearly —
+  // rendering and the console still work.
+  setTimeout(function () {
+    if (!window.native) {
+      var status = document.getElementById('bridgeStatus');
+      status.className = 'warn';
+      status.innerHTML =
+        'window.native is <b>disabled</b> in this run (live injection into the AppCore view ' +
+        'is still being debugged).<br>Rendering works (you see this page) and the JS console ' +
+        'below works. The window.native capability is proven by the automated tests.<br>' +
+        'To help pinpoint the live-bridge crash, run with <code>SENTINEL_BRIDGE=1</code> and share ' +
+        'the last line of <code>sentinel-bridge-debug.log</code>.';
+    }
+  }, 500);
 </script>
 </body>
 </html>

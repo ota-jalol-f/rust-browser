@@ -89,6 +89,21 @@ mod gui {
     /// pre-granted every capability so the dashboard can show live device data.
     const BUILTIN_ORIGIN: &str = "sentinel://home";
 
+    /// Append a line to `sentinel-bridge-debug.log` (CWD), flushed, for isolating
+    /// the AppCore bridge-install crash. Only active when SENTINEL_BRIDGE is set
+    /// (the same gate that enables the install), so normal runs write nothing.
+    fn log_debug(msg: &str) {
+        use std::io::Write;
+        if let Ok(mut f) = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open("sentinel-bridge-debug.log")
+        {
+            let _ = writeln!(f, "shell: {msg}");
+            let _ = f.flush();
+        }
+    }
+
     /// A single-window, single-overlay browser driven by a [`History`] model, with
     /// the `window.native` bridge installed on every page's DOM-ready.
     ///
@@ -172,16 +187,21 @@ mod gui {
                 }
             }
 
-            // Install `window.native` on every page's DOM-ready (the JS context
-            // resets per navigation). Wrapped in catch_unwind so a failure can never
-            // unwind across Ultralight's C callback boundary and crash the browser.
-            {
+            // Install `window.native` on every page's DOM-ready — but ONLY when
+            // opted in via SENTINEL_BRIDGE, because doing so on an AppCore overlay
+            // view currently causes a native crash we are still isolating. Off by
+            // default, the browser runs fine (dashboard renders, JS console works);
+            // window.native is proven by the headless engine tests. With the env var
+            // set, install_native writes step markers to sentinel-bridge-debug.log so
+            // the exact crashing native call can be identified.
+            if std::env::var_os("SENTINEL_BRIDGE").is_some() {
                 let router = router.clone();
                 let executor = executor.clone();
                 overlay.view().set_dom_ready_callback(move |view, _frame_id, is_main_frame, url| {
                     if !is_main_frame {
                         return;
                     }
+                    log_debug(&format!("dom_ready fired (main frame), url={url:?}"));
                     // Real pages use their own origin (Ask by default); the built-in
                     // dashboard has no URL, so it falls back to the trusted origin.
                     let origin = Origin::parse(&url)
@@ -193,9 +213,9 @@ mod gui {
                         jsbridge::install_native(view, router, executor, origin)
                     }));
                     match result {
-                        Ok(Ok(())) => {}
-                        Ok(Err(e)) => eprintln!("window.native install error: {e}"),
-                        Err(_) => eprintln!("window.native install panicked (contained)"),
+                        Ok(Ok(())) => log_debug("install_native returned Ok"),
+                        Ok(Err(e)) => log_debug(&format!("install_native error: {e}")),
+                        Err(_) => log_debug("install_native panicked (contained)"),
                     }
                 });
             }

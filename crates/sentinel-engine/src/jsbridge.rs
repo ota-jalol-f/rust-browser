@@ -23,6 +23,25 @@ use ul_next::view::View;
 /// Version string exposed to pages as `window.native.version`.
 pub const BRIDGE_VERSION: &str = "0.1";
 
+/// Append a step marker to `sentinel-bridge-debug.log` (in the CWD) when the
+/// `SENTINEL_BRIDGE` env var is set. Flushed each call so that if the NEXT native
+/// call access-violates, the last logged line names the last step that succeeded —
+/// pinpointing which JavaScriptCore call crashes on an AppCore overlay view.
+fn debug_step(step: &str) {
+    if std::env::var_os("SENTINEL_BRIDGE").is_none() {
+        return;
+    }
+    use std::io::Write;
+    if let Ok(mut f) = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open("sentinel-bridge-debug.log")
+    {
+        let _ = writeln!(f, "install_native: {step}");
+        let _ = f.flush();
+    }
+}
+
 /// A router shared between the page callback and the consent flow.
 pub type SharedRouter<B> = Arc<Mutex<BridgeRouter<B>>>;
 
@@ -45,10 +64,14 @@ where
     B: PermissionBroker + 'static,
     E: RequestExecutor + 'static,
 {
+    debug_step("start");
     {
+        debug_step("before lock_js_context");
         let ctx = view.lock_js_context();
+        debug_step("before global_object");
         let global = ctx.global_object();
 
+        debug_step("before new_function_with_callback");
         // The native entry point: (jsonRequest: string) -> jsonOutcome: string.
         let callback = JSObject::new_function_with_callback(&ctx, move |ctx, _this, args| {
             let request_json = args
@@ -68,11 +91,14 @@ where
             Ok(JSValue::new_string(ctx, &outcome))
         });
 
+        debug_step("before set_property");
         global
             .set_property("__sentinelNativeCall", &callback, JSPropertyAttributes::default())
             .map_err(|e| Error::Engine(format!("set_property failed: {e:?}")))?;
+        debug_step("after set_property (dropping ctx guard)");
     }
 
+    debug_step("before evaluate_script(shim)");
     // Friendly namespace built on the native entry point.
     let shim = format!(
         "(function(){{\
@@ -88,9 +114,11 @@ where
          }})();",
         version = BRIDGE_VERSION
     );
-    match view
+    let outcome = view
         .evaluate_script(&shim)
-        .map_err(|e| Error::Engine(format!("bridge shim eval failed: {e:?}")))?
+        .map_err(|e| Error::Engine(format!("bridge shim eval failed: {e:?}")))?;
+    debug_step("after evaluate_script(shim)");
+    match outcome
     {
         Ok(_) => Ok(()),
         Err(js_exception) => Err(Error::Engine(format!("bridge shim threw: {js_exception}"))),
