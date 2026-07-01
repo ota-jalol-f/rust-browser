@@ -1,10 +1,14 @@
 //! `sentinel-shell`: the browser window and chrome.
 //!
-//! Exposes [`browser`] — the windowed controller plus the pure `normalize_url`
-//! helper. The binary in `main.rs` wires these together. SDK-dependent code is
-//! behind the `ultralight` feature, mirroring `sentinel-engine`.
+//! - [`browser`] — the pure `normalize_url` address-bar helper (always built/tested).
+//! - [`dashboard`] — the built-in start page HTML.
+//! - `app` (feature `ultralight`) — the winit + softbuffer window that presents the
+//!   engine's low-level renderer and forwards input. This is the windowed browser.
 
 #![warn(missing_docs)]
 
 pub mod browser;
 pub mod dashboard;
+
+#[cfg(feature = "ultralight")]
+pub mod app;

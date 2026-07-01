@@ -1,27 +1,24 @@
 //! Sentinel browser entry point.
 //!
-//! With the `ultralight` feature it opens the window, loads the home URL, and runs
-//! the event loop. Without the feature (e.g. CI without the SDK) it builds and
-//! prints how to enable the GUI, so the binary target always compiles.
+//! With the `ultralight` feature it opens a winit window that presents the engine's
+//! renderer. Without the feature it builds and prints how to enable the GUI, so the
+//! binary target always compiles.
 
 #[cfg(feature = "ultralight")]
 fn main() -> sentinel_core::Result<()> {
     use sentinel_core::BrowserConfig;
+    use sentinel_shell::app;
     use sentinel_shell::dashboard::{DASHBOARD_HTML, DEVICES_PLACEHOLDER};
 
     let config = BrowserConfig::default();
     config.validate()?;
 
-    let browser = sentinel_shell::browser::Browser::new(&config)?;
-
     // Enumerate real devices in Rust and bake the snapshot into the dashboard, so
-    // the page shows live hardware without the (disabled) JS bridge.
-    let devices = browser.device_snapshot_json();
+    // the page shows live hardware immediately.
+    let devices = app::device_snapshot_json();
     let html = DASHBOARD_HTML.replace(DEVICES_PLACEHOLDER, &devices);
-    browser.show_html(&html)?;
 
-    browser.run(); // blocks until the window closes
-    Ok(())
+    app::run(&config, html)
 }
 
 #[cfg(not(feature = "ultralight"))]
