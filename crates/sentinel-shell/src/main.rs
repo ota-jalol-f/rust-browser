@@ -10,6 +10,22 @@ fn main() -> sentinel_core::Result<()> {
     use sentinel_shell::app;
     use sentinel_shell::dashboard::{DASHBOARD_HTML, DEVICES_PLACEHOLDER};
 
+    // Capture panics (e.g. inside the winit callback, which Windows turns into a
+    // fatal callback exception) to a file so the cause is recoverable.
+    std::panic::set_hook(Box::new(|info| {
+        use std::io::Write;
+        let msg = format!("PANIC: {info}\n");
+        eprint!("{msg}");
+        if let Ok(mut f) = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open("sentinel-panic.log")
+        {
+            let _ = f.write_all(msg.as_bytes());
+            let _ = f.flush();
+        }
+    }));
+
     let config = BrowserConfig::default();
     config.validate()?;
 

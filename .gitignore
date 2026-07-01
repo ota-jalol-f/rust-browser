@@ -5,3 +5,4 @@
 ultralight.log
 sentinel-startup.log
 sentinel-bridge-debug.log
+sentinel-panic.log
