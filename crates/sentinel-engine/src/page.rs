@@ -1,14 +1,13 @@
-//! `PageView`: a self-driven Ultralight page the host renders into its own window.
+//! `Engine` + `PageView`: low-level Ultralight rendering the host presents itself.
 //!
-//! Unlike the AppCore path (which owns the window and crashes on View callbacks),
-//! this uses the low-level `Renderer` + a CPU `View`. The host (shell) owns the
-//! window (via winit), pumps [`PageView::update`], reads pixels with
-//! [`PageView::snapshot_bgra`], forwards input, and — crucially — can install the
-//! `window.native` bridge here, which works on Renderer views (proven by tests).
-//!
-//! Compiled only with the `ultralight` feature.
+//! Unlike the AppCore path (whose overlay views crash on View callbacks), this uses
+//! one low-level `Renderer` driving one or more CPU `View`s. The host (shell) owns
+//! the window (winit), pumps [`Engine::update`] once per frame, reads each view's
+//! pixels with [`PageView::snapshot_bgra`], composites them, and forwards input.
+//! Crucially the `window.native` / navigation bridges install here, on Renderer
+//! views (verified by the engine's headless tests). Feature `ultralight` only.
 
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use sentinel_core::{Error, Result};
 use sentinel_ipc::RequestExecutor;
@@ -18,14 +17,19 @@ use ul_next::{
         KeyEvent, KeyEventCreationInfo, KeyEventModifiers, KeyEventType, MouseButton, MouseEvent,
         MouseEventType,
     },
+    javascript::{JSObject, JSPropertyAttributes, JSValue},
     key_code::VirtualKeyCode,
     renderer::Renderer,
     view::View,
     Library,
 };
 
+use crate::jsbridge::{SharedExecutor, SharedRouter};
+
+const NO_MODS: KeyEventModifiers =
+    KeyEventModifiers { alt: false, ctrl: false, meta: false, shift: false };
+
 /// Editing / navigation keys that don't produce text but drive input fields.
-/// The shell maps its windowing library's named keys onto these.
 #[derive(Debug, Clone, Copy)]
 pub enum SpecialKey {
     /// Backspace.
@@ -76,11 +80,40 @@ impl SpecialKey {
     }
 }
 
-use crate::jsbridge::{SharedExecutor, SharedRouter};
-
-/// A CPU-rendered page the host presents itself.
-pub struct PageView {
+/// Owns the single Ultralight `Renderer` and creates [`PageView`]s. Only one
+/// `Renderer` may exist per process, so create exactly one `Engine`.
+pub struct Engine {
     renderer: Renderer,
+    lib: Arc<Library>,
+}
+
+impl Engine {
+    /// Initialize Ultralight and the CPU renderer.
+    ///
+    /// # Errors
+    /// [`Error::Engine`] on initialization failure.
+    pub fn new() -> Result<Self> {
+        Ok(Self { renderer: crate::headless::init_renderer()?, lib: Library::linked() })
+    }
+
+    /// Create a `width`x`height` CPU page.
+    ///
+    /// # Errors
+    /// [`Error::Engine`] if the view cannot be created.
+    pub fn create_page(&self, width: u32, height: u32) -> Result<PageView> {
+        let view = crate::headless::create_cpu_view(&self.renderer, width, height)?;
+        Ok(PageView { view, lib: self.lib.clone(), width, height })
+    }
+
+    /// Pump one update+render cycle for ALL views. Call once per frame.
+    pub fn update(&self) {
+        self.renderer.update();
+        self.renderer.render();
+    }
+}
+
+/// A CPU-rendered view. Rendering is driven by its [`Engine`].
+pub struct PageView {
     view: View,
     lib: Arc<Library>,
     width: u32,
@@ -88,17 +121,7 @@ pub struct PageView {
 }
 
 impl PageView {
-    /// Create a page of `width`x`height` pixels using the CPU renderer.
-    ///
-    /// # Errors
-    /// [`Error::Engine`] if the engine or view fails to initialize.
-    pub fn new(width: u32, height: u32) -> Result<Self> {
-        let renderer = crate::headless::init_renderer()?;
-        let view = crate::headless::create_cpu_view(&renderer, width, height)?;
-        Ok(Self { renderer, view, lib: Library::linked(), width, height })
-    }
-
-    /// Borrow the underlying view (for `jsbridge::install_native`, callbacks, etc.).
+    /// Borrow the underlying view.
     pub fn view(&self) -> &View {
         &self.view
     }
@@ -108,9 +131,7 @@ impl PageView {
     /// # Errors
     /// [`Error::Engine`] if the view rejects the HTML.
     pub fn load_html(&self, html: &str) -> Result<()> {
-        self.view
-            .load_html(html)
-            .map_err(|e| Error::Engine(format!("load_html: {e:?}")))
+        self.view.load_html(html).map_err(|e| Error::Engine(format!("load_html: {e:?}")))
     }
 
     /// Load a URL.
@@ -118,15 +139,12 @@ impl PageView {
     /// # Errors
     /// [`Error::Engine`] if the view rejects the URL.
     pub fn load_url(&self, url: &str) -> Result<()> {
-        self.view
-            .load_url(url)
-            .map_err(|e| Error::Engine(format!("load_url: {e:?}")))
+        self.view.load_url(url).map_err(|e| Error::Engine(format!("load_url: {e:?}")))
     }
 
-    /// Pump one update+render cycle. Call every frame.
-    pub fn update(&self) {
-        self.renderer.update();
-        self.renderer.render();
+    /// Evaluate a script in the page (fire-and-forget).
+    pub fn eval(&self, script: &str) {
+        let _ = self.view.evaluate_script(script);
     }
 
     /// Whether the current page is still loading.
@@ -134,13 +152,13 @@ impl PageView {
         self.view.is_loading()
     }
 
-    /// Current logical size in pixels.
+    /// Size in pixels.
     pub fn size(&self) -> (u32, u32) {
         (self.width, self.height)
     }
 
-    /// Copy the current frame as premultiplied-BGRA bytes plus its row stride.
-    /// Returns `(width, height, row_bytes, pixels)`.
+    /// Copy the current frame as premultiplied-BGRA bytes + row stride:
+    /// `(width, height, row_bytes, pixels)`.
     pub fn snapshot_bgra(&self) -> Option<(u32, u32, u32, Vec<u8>)> {
         let mut surface = self.view.surface()?;
         let row_bytes = surface.row_bytes();
@@ -148,13 +166,7 @@ impl PageView {
         Some((self.width, self.height, row_bytes, pixels.to_vec()))
     }
 
-    /// Install the `window.native` bridge on every page load (DOM-ready), routing
-    /// calls for the page's origin through `router` and executing granted ones on
-    /// `executor`. Pages with no parseable URL (e.g. `load_html`) use
-    /// `fallback_origin`.
-    ///
-    /// This works because the callback + install run on a low-level Renderer view
-    /// (verified by the engine's headless tests) — unlike AppCore overlay views.
+    /// Install the `window.native` capability bridge on each page's DOM-ready.
     pub fn install_bridge<B, E>(
         &self,
         router: SharedRouter<B>,
@@ -177,6 +189,28 @@ impl PageView {
         });
     }
 
+    /// Install a chrome-control bridge: a `window.__sentinelNav(cmd)` function that
+    /// pushes the command string onto `queue` for the host loop to apply. Used by
+    /// the address-bar chrome to drive the content view.
+    pub fn install_nav_bridge(&self, queue: Arc<Mutex<Vec<String>>>) {
+        self.view.set_dom_ready_callback(move |view, _frame_id, is_main_frame, _url| {
+            if !is_main_frame {
+                return;
+            }
+            let queue = queue.clone();
+            let ctx = view.lock_js_context();
+            let global = ctx.global_object();
+            let callback = JSObject::new_function_with_callback(&ctx, move |ctx, _this, args| {
+                if let Some(s) = args.first().and_then(|v| v.as_string().ok()) {
+                    queue.lock().unwrap_or_else(|p| p.into_inner()).push(s.to_string());
+                }
+                Ok(JSValue::new_string(ctx, "ok"))
+            });
+            let _ =
+                global.set_property("__sentinelNav", &callback, JSPropertyAttributes::default());
+        });
+    }
+
     /// Forward a mouse move to `(x, y)` (view-relative pixels).
     pub fn mouse_move(&self, x: i32, y: i32) {
         if let Ok(ev) =
@@ -194,12 +228,11 @@ impl PageView {
         }
     }
 
-    /// Insert `text` (a typed character or sequence) into the focused input via a
-    /// `Char` key event — the only key type that generates text in Ultralight.
+    /// Insert `text` via a `Char` key event (the only key type that generates text).
     pub fn key_char(&self, text: &str) {
         let info = KeyEventCreationInfo {
             ty: KeyEventType::Char,
-            modifiers: KeyEventModifiers { alt: false, ctrl: false, meta: false, shift: false },
+            modifiers: NO_MODS,
             virtual_key_code: VirtualKeyCode::Unknown,
             native_key_code: 0,
             text,
@@ -213,12 +246,11 @@ impl PageView {
         }
     }
 
-    /// Forward an editing/navigation key press or release (backspace, enter, arrows…)
-    /// as a raw key event so input fields respond.
+    /// Forward an editing/navigation key (backspace, enter, arrows…) as a raw event.
     pub fn key_special(&self, key: SpecialKey, pressed: bool) {
         let info = KeyEventCreationInfo {
             ty: if pressed { KeyEventType::RawKeyDown } else { KeyEventType::KeyUp },
-            modifiers: KeyEventModifiers { alt: false, ctrl: false, meta: false, shift: false },
+            modifiers: NO_MODS,
             virtual_key_code: key.virtual_key(),
             native_key_code: 0,
             text: "",

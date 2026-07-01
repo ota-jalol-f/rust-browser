@@ -8,6 +8,7 @@
 #![warn(missing_docs)]
 
 pub mod browser;
+pub mod chrome;
 pub mod dashboard;
 
 #[cfg(feature = "ultralight")]
