@@ -26,7 +26,8 @@ fn main() -> sentinel_core::Result<()> {
     //   SENTINEL_CONTENT=minimal -> load_html of a trivial page
     //   (unset)                  -> the full built-in dashboard
     let content = std::env::var("SENTINEL_CONTENT").unwrap_or_default();
-    startup_log(&format!("main: content mode = {content:?}"));
+    let bridge_on = std::env::var_os("SENTINEL_BRIDGE").is_some();
+    startup_log(&format!("main: content mode = {content:?}, SENTINEL_BRIDGE set = {bridge_on}"));
     match content.as_str() {
         "url" => browser.open_url("https://example.com")?,
         "minimal" => browser.show_html(
