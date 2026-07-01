@@ -46,11 +46,12 @@ pub const DASHBOARD_HTML: &str = r##"<!DOCTYPE html>
       <tbody id="usbBody"></tbody>
     </table>
     <div id="serialLine" class="muted" style="margin-top:10px"></div>
+    <div id="bridgeStatus" class="muted" style="margin-top:10px">window.native: checking...</div>
   </div>
 
   <div class="card">
-    <h2>JS console <span class="muted">- type JavaScript, press Run</span></h2>
-    <textarea id="consoleIn">navigator.userAgent</textarea>
+    <h2>JS console <span class="muted">- click Run to call the live bridge</span></h2>
+    <textarea id="consoleIn">window.native.usb.list()</textarea>
     <div><button onclick="runConsole()">Run</button></div>
     <pre class="out" id="consoleOut"></pre>
   </div>
@@ -105,6 +106,21 @@ pub const DASHBOARD_HTML: &str = r##"<!DOCTYPE html>
   }
 
   renderDevices();
+
+  // The Rust bridge calls this right after installing window.native.
+  window.onSentinelReady = function () {
+    var s = document.getElementById('bridgeStatus');
+    s.className = 'ok';
+    s.textContent = 'window.native: LIVE (v' + window.native.version + ') - click Run to call it';
+  };
+  if (window.native) { window.onSentinelReady(); }
+  setTimeout(function () {
+    if (!window.native) {
+      var s = document.getElementById('bridgeStatus');
+      s.className = 'warn';
+      s.textContent = 'window.native: not installed yet';
+    }
+  }, 800);
 </script>
 </body>
 </html>

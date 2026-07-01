@@ -12,14 +12,29 @@
 
 use std::num::NonZeroU32;
 use std::rc::Rc;
+use std::sync::{Arc, Mutex};
 
+use sentinel_bridge::BridgeRouter;
 use sentinel_core::{BrowserConfig, Error, Result};
+use sentinel_device_host::{DeviceHost, SystemBackend};
+use sentinel_dll_host::DllHost;
 use sentinel_engine::page::PageView;
+use sentinel_hosts::HostRouter;
+use sentinel_permissions::{Capability, InMemoryBroker, Origin, PermissionBroker, PermissionState};
 use winit::application::ApplicationHandler;
 use winit::dpi::{LogicalSize, PhysicalPosition};
 use winit::event::{ElementState, MouseButton, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, EventLoop};
 use winit::window::{Window, WindowId};
+
+/// Shared permission router (broker is `Ask` by default).
+type Router = Arc<Mutex<BridgeRouter<InMemoryBroker>>>;
+/// Shared combined host executor (USB/serial via device host, DLL via DLL host).
+type Executor = Arc<Mutex<HostRouter<SystemBackend>>>;
+
+/// Origin used for the built-in dashboard (no real URL); pre-granted every
+/// capability so its console can call `window.native.*` live.
+const BUILTIN_ORIGIN: &str = "sentinel://home";
 
 /// Enumerate USB + serial devices in Rust and return a JSON snapshot
 /// `{"usb": <Response>, "serial": <Response>}` for injection into the dashboard —
@@ -53,6 +68,8 @@ pub fn run(config: &BrowserConfig, html: String) -> Result<()> {
         surface: None,
         page: None,
         cursor: PhysicalPosition::new(0.0, 0.0),
+        router: None,
+        executor: None,
     };
     event_loop
         .run_app(&mut app)
@@ -67,6 +84,9 @@ struct App {
     surface: Option<softbuffer::Surface<Rc<Window>, Rc<Window>>>,
     page: Option<PageView>,
     cursor: PhysicalPosition<f64>,
+    // Kept alive for the page callback / future consent UI.
+    router: Option<Router>,
+    executor: Option<Executor>,
 }
 
 impl ApplicationHandler for App {
@@ -120,9 +140,25 @@ impl ApplicationHandler for App {
             eprintln!("load_html: {e}");
         }
 
+        // Install the live window.native bridge on each page's DOM-ready. This is
+        // the payoff of the Renderer path: the callback + JS install work here.
+        let router: Router = Arc::new(Mutex::new(BridgeRouter::new(InMemoryBroker::new())));
+        let executor: Executor =
+            Arc::new(Mutex::new(HostRouter::new(DeviceHost::new(SystemBackend), DllHost::new())));
+        let fallback = Origin::parse(BUILTIN_ORIGIN).expect("BUILTIN_ORIGIN is valid");
+        {
+            let mut g = router.lock().unwrap_or_else(|p| p.into_inner());
+            for cap in Capability::ALL {
+                g.broker_mut().set(&fallback, cap, PermissionState::Granted);
+            }
+        }
+        page.install_bridge(router.clone(), executor.clone(), fallback);
+
         self.window = Some(window);
         self.surface = Some(surface);
         self.page = Some(page);
+        self.router = Some(router);
+        self.executor = Some(executor);
     }
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {

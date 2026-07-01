@@ -11,12 +11,16 @@
 use std::sync::Arc;
 
 use sentinel_core::{Error, Result};
+use sentinel_ipc::RequestExecutor;
+use sentinel_permissions::{Origin, PermissionBroker};
 use ul_next::{
     event::{MouseButton, MouseEvent, MouseEventType},
     renderer::Renderer,
     view::View,
     Library,
 };
+
+use crate::jsbridge::{SharedExecutor, SharedRouter};
 
 /// A CPU-rendered page the host presents itself.
 pub struct PageView {
@@ -86,6 +90,35 @@ impl PageView {
         let row_bytes = surface.row_bytes();
         let pixels = surface.lock_pixels()?;
         Some((self.width, self.height, row_bytes, pixels.to_vec()))
+    }
+
+    /// Install the `window.native` bridge on every page load (DOM-ready), routing
+    /// calls for the page's origin through `router` and executing granted ones on
+    /// `executor`. Pages with no parseable URL (e.g. `load_html`) use
+    /// `fallback_origin`.
+    ///
+    /// This works because the callback + install run on a low-level Renderer view
+    /// (verified by the engine's headless tests) — unlike AppCore overlay views.
+    pub fn install_bridge<B, E>(
+        &self,
+        router: SharedRouter<B>,
+        executor: SharedExecutor<E>,
+        fallback_origin: Origin,
+    ) where
+        B: PermissionBroker + 'static,
+        E: RequestExecutor + 'static,
+    {
+        self.view.set_dom_ready_callback(move |view, _frame_id, is_main_frame, url| {
+            if !is_main_frame {
+                return;
+            }
+            let origin = Origin::parse(&url).unwrap_or_else(|_| fallback_origin.clone());
+            if let Err(e) =
+                crate::jsbridge::install_native(view, router.clone(), executor.clone(), origin)
+            {
+                eprintln!("window.native install failed: {e}");
+            }
+        });
     }
 
     /// Forward a mouse move to `(x, y)` (view-relative pixels).
