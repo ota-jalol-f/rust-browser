@@ -188,13 +188,13 @@ impl PageView {
             }
             let src = y as usize * row_bytes;
             let dst = (dst_y * buf_w) as usize;
-            let (src_row, dst_row) = (&px[src..], &mut buf[dst..dst + cols]);
-            for x in 0..cols {
-                let i = x * 4;
-                let b = src_row[i] as u32;
-                let g = src_row[i + 1] as u32;
-                let r = src_row[i + 2] as u32;
-                dst_row[x] = (r << 16) | (g << 8) | b;
+            let src_row = &px[src..];
+            let dst_row = &mut buf[dst..dst + cols];
+            for (dst_px, src_px) in dst_row.iter_mut().zip(src_row.chunks_exact(4)) {
+                let b = src_px[0] as u32;
+                let g = src_px[1] as u32;
+                let r = src_px[2] as u32;
+                *dst_px = (r << 16) | (g << 8) | b;
             }
         }
     }
