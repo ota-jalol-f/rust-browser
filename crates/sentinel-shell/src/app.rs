@@ -8,6 +8,7 @@
 use std::num::NonZeroU32;
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
 
 use sentinel_bridge::BridgeRouter;
 use sentinel_core::{BrowserConfig, Error, Result};
@@ -18,10 +19,15 @@ use sentinel_hosts::HostRouter;
 use sentinel_permissions::{Capability, InMemoryBroker, Origin, PermissionBroker, PermissionState};
 use winit::application::ApplicationHandler;
 use winit::dpi::{LogicalSize, PhysicalPosition};
-use winit::event::{ElementState, MouseButton, WindowEvent};
-use winit::event_loop::{ActiveEventLoop, EventLoop};
+use winit::event::{ElementState, MouseButton, MouseScrollDelta, WindowEvent};
+use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
 use winit::keyboard::{Key, NamedKey};
 use winit::window::{Window, WindowId};
+
+/// Pixels scrolled per mouse-wheel line notch.
+const SCROLL_LINE_PX: f32 = 48.0;
+/// Target frame interval (~60 fps).
+const FRAME: Duration = Duration::from_millis(16);
 
 use crate::browser::normalize_url;
 use crate::chrome::{BAR_HEIGHT, CHROME_HTML};
@@ -75,7 +81,7 @@ pub fn run(config: &BrowserConfig, home_html: String) -> Result<()> {
         home_origin: Origin::parse(BUILTIN_ORIGIN).expect("valid"),
         chrome_installed: false,
         content_loading: true,
-        needs_paint: true,
+        last_frame: Instant::now(),
     };
     event_loop.run_app(&mut app).map_err(|e| Error::Engine(format!("winit run: {e}")))
 }
@@ -100,8 +106,8 @@ struct App {
     chrome_installed: bool,
     /// Previous-frame loading state of the content view (to detect load completion).
     content_loading: bool,
-    /// Repaint requested (input/nav/startup). Avoids constant-spin CPU when idle.
-    needs_paint: bool,
+    /// Time of the last painted frame (for ~60 fps pacing).
+    last_frame: Instant,
 }
 
 impl ApplicationHandler for App {
@@ -176,18 +182,24 @@ impl ApplicationHandler for App {
     }
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
-        // Any input should trigger a repaint (hover, caret, click feedback).
-        if matches!(
-            event,
-            WindowEvent::CursorMoved { .. }
-                | WindowEvent::MouseInput { .. }
-                | WindowEvent::KeyboardInput { .. }
-        ) {
-            self.needs_paint = true;
-        }
         match event {
             WindowEvent::CloseRequested => event_loop.exit(),
             WindowEvent::RedrawRequested => self.paint(),
+            WindowEvent::MouseWheel { delta, .. } => {
+                let (dx, dy) = match delta {
+                    MouseScrollDelta::LineDelta(x, y) => {
+                        ((x * SCROLL_LINE_PX) as i32, (y * SCROLL_LINE_PX) as i32)
+                    }
+                    MouseScrollDelta::PixelDelta(p) => (p.x as i32, p.y as i32),
+                };
+                if self.cursor.y as i32 >= self.bar_h as i32 {
+                    if let Some(c) = &self.content {
+                        c.scroll(dx, dy);
+                    }
+                } else if let Some(c) = &self.chrome {
+                    c.scroll(dx, dy);
+                }
+            }
             WindowEvent::CursorMoved { position, .. } => {
                 self.cursor = position;
                 let (x, y) = (position.x as i32, position.y as i32);
@@ -241,19 +253,15 @@ impl ApplicationHandler for App {
         }
     }
 
-    fn about_to_wait(&mut self, _event_loop: &ActiveEventLoop) {
+    fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
         self.apply_nav_commands();
         self.install_bridges_if_ready();
-        // Keep pumping while a page loads; otherwise repaint only when something
-        // changed. This avoids burning CPU on a static, idle page.
-        let loading = self.chrome.as_ref().is_some_and(|c| c.is_loading())
-            || self.content.as_ref().is_some_and(|c| c.is_loading());
-        if loading || self.needs_paint {
-            if let Some(window) = &self.window {
-                window.request_redraw();
-            }
-            self.needs_paint = false;
+        // Continuous rendering paced to ~60 fps (smooth hover/scroll/animation
+        // without spinning the CPU unbounded).
+        if let Some(window) = &self.window {
+            window.request_redraw();
         }
+        event_loop.set_control_flow(ControlFlow::WaitUntil(self.last_frame + FRAME));
     }
 }
 
@@ -290,7 +298,6 @@ impl App {
                 let js = serde_json::to_string(&u).unwrap_or_else(|_| "\"\"".into());
                 chrome.eval(&format!("window.setUrl && window.setUrl({js})"));
             }
-            self.needs_paint = true;
         }
         self.content_loading = loading;
     }
@@ -307,7 +314,6 @@ impl App {
         if commands.is_empty() {
             return;
         }
-        self.needs_paint = true;
         let Some(content) = &self.content else {
             return;
         };
@@ -325,6 +331,7 @@ impl App {
     }
 
     fn paint(&mut self) {
+        self.last_frame = Instant::now();
         let win_w = self.width_px();
         let win_h = self.height_px();
         let bar_h = self.bar_h;

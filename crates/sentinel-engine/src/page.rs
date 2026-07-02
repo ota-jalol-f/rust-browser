@@ -15,7 +15,7 @@ use sentinel_permissions::{Origin, PermissionBroker};
 use ul_next::{
     event::{
         KeyEvent, KeyEventCreationInfo, KeyEventModifiers, KeyEventType, MouseButton, MouseEvent,
-        MouseEventType,
+        MouseEventType, ScrollEvent, ScrollEventType,
     },
     javascript::{JSObject, JSPropertyAttributes, JSValue},
     key_code::VirtualKeyCode,
@@ -270,6 +270,15 @@ impl PageView {
         let ty = if pressed { MouseEventType::MouseDown } else { MouseEventType::MouseUp };
         if let Ok(ev) = MouseEvent::new(self.lib.clone(), ty, x, y, MouseButton::Left) {
             self.view.fire_mouse_event(ev);
+        }
+    }
+
+    /// Scroll by `(dx, dy)` pixels (positive `dy` scrolls the page content down).
+    pub fn scroll(&self, dx: i32, dy: i32) {
+        if let Ok(ev) =
+            ScrollEvent::new(self.lib.clone(), ScrollEventType::ScrollByPixel, dx, dy)
+        {
+            self.view.fire_scroll_event(ev);
         }
     }
 
