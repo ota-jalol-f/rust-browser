@@ -10,7 +10,7 @@ use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 
 use sentinel_bridge::BridgeRouter;
-use sentinel_core::{BrowserConfig, Error, History, Result};
+use sentinel_core::{BrowserConfig, Error, Result};
 use sentinel_device_host::{DeviceHost, SystemBackend};
 use sentinel_dll_host::DllHost;
 use sentinel_engine::page::{Engine, PageView, SpecialKey};
@@ -70,7 +70,6 @@ pub fn run(config: &BrowserConfig, home_html: String) -> Result<()> {
         cursor: PhysicalPosition::new(0.0, 0.0),
         focus: Focus::Content,
         nav_queue: Arc::new(Mutex::new(Vec::new())),
-        history: History::new(),
         router: None,
         executor: None,
         home_origin: Origin::parse(BUILTIN_ORIGIN).expect("valid"),
@@ -94,7 +93,6 @@ struct App {
     cursor: PhysicalPosition<f64>,
     focus: Focus,
     nav_queue: Arc<Mutex<Vec<String>>>,
-    history: History,
     router: Option<Router>,
     executor: Option<Executor>,
     home_origin: Origin,
@@ -274,68 +272,54 @@ impl App {
             }
         }
 
-        // Content window.native: (re)install on each load-completion transition.
-        if let Some(content) = &self.content {
-            let loading = content.is_loading();
-            if self.content_loading && !loading {
-                let origin = self
-                    .history
-                    .current()
-                    .and_then(|u| Origin::parse(u).ok())
-                    .unwrap_or_else(|| self.home_origin.clone());
-                if let (Some(router), Some(executor)) = (&self.router, &self.executor) {
-                    let _ = content.install_native_now(router.clone(), executor.clone(), origin);
-                }
-                self.needs_paint = true; // reflect onSentinelReady output
+        // On each content load-completion: (re)install window.native for the new
+        // page's origin, and sync the address bar to the actual URL.
+        let loading = self.content.as_ref().is_some_and(|c| c.is_loading());
+        if self.content_loading && !loading {
+            let url = self.content.as_ref().and_then(|c| c.current_url());
+            let origin = url
+                .as_deref()
+                .and_then(|u| Origin::parse(u).ok())
+                .unwrap_or_else(|| self.home_origin.clone());
+            if let (Some(content), Some(router), Some(executor)) =
+                (&self.content, &self.router, &self.executor)
+            {
+                let _ = content.install_native_now(router.clone(), executor.clone(), origin);
             }
-            self.content_loading = loading;
+            if let (Some(u), Some(chrome)) = (url, &self.chrome) {
+                let js = serde_json::to_string(&u).unwrap_or_else(|_| "\"\"".into());
+                chrome.eval(&format!("window.setUrl && window.setUrl({js})"));
+            }
+            self.needs_paint = true;
         }
+        self.content_loading = loading;
     }
 
-    /// Drain navigation commands from the chrome and apply them to the content view.
+    /// Drain navigation commands from the chrome and apply them to the content view
+    /// using the view's own WebKit session history (which tracks query params,
+    /// redirects, and in-page navigations correctly). The address bar is synced when
+    /// the resulting load completes (see [`Self::install_bridges_if_ready`]).
     fn apply_nav_commands(&mut self) {
         let commands: Vec<String> = {
             let mut q = self.nav_queue.lock().unwrap_or_else(|p| p.into_inner());
             std::mem::take(&mut *q)
         };
-        if !commands.is_empty() {
-            self.needs_paint = true;
+        if commands.is_empty() {
+            return;
         }
+        self.needs_paint = true;
+        let Some(content) = &self.content else {
+            return;
+        };
         for cmd in commands {
-            let content = match &self.content {
-                Some(c) => c,
-                None => continue,
-            };
-            let target = if let Some(url) = cmd.strip_prefix("nav ") {
-                let url = normalize_url(url);
-                self.history.navigate(url.clone());
-                let _ = content.load_url(&url);
-                Some(url)
+            if let Some(url) = cmd.strip_prefix("nav ") {
+                let _ = content.load_url(&normalize_url(url));
             } else if cmd == "back" {
-                self.history.back().ok().map(|u| {
-                    let u = u.to_string();
-                    let _ = content.load_url(&u);
-                    u
-                })
+                content.go_back();
             } else if cmd == "forward" {
-                self.history.forward().ok().map(|u| {
-                    let u = u.to_string();
-                    let _ = content.load_url(&u);
-                    u
-                })
+                content.go_forward();
             } else if cmd == "reload" {
-                self.history.current().map(|u| {
-                    let u = u.to_string();
-                    let _ = content.load_url(&u);
-                    u
-                })
-            } else {
-                None
-            };
-            // Sync the address bar with the loaded URL.
-            if let (Some(url), Some(chrome)) = (target, &self.chrome) {
-                let js = serde_json::to_string(&url).unwrap_or_else(|_| "\"\"".into());
-                chrome.eval(&format!("window.setUrl && window.setUrl({js})"));
+                content.reload();
             }
         }
     }

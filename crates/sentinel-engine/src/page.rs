@@ -152,6 +152,29 @@ impl PageView {
         self.view.is_loading()
     }
 
+    /// The current page URL, if any (WebKit's actual URL — reflects redirects and
+    /// query params). Empty/errored URLs return `None`.
+    pub fn current_url(&self) -> Option<String> {
+        self.view.url().ok().filter(|s| !s.is_empty())
+    }
+
+    /// Navigate back in the view's WebKit session history.
+    pub fn go_back(&self) {
+        self.view.go_back();
+    }
+
+    /// Navigate forward in the view's WebKit session history.
+    pub fn go_forward(&self) {
+        self.view.go_forward();
+    }
+
+    /// Reload the current page (re-loads its actual URL, preserving query params).
+    pub fn reload(&self) {
+        if let Some(url) = self.current_url() {
+            let _ = self.view.load_url(&url);
+        }
+    }
+
     /// Size in pixels.
     pub fn size(&self) -> (u32, u32) {
         (self.width, self.height)
