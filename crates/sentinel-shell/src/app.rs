@@ -76,6 +76,7 @@ pub fn run(config: &BrowserConfig, home_html: String) -> Result<()> {
         home_origin: Origin::parse(BUILTIN_ORIGIN).expect("valid"),
         chrome_installed: false,
         content_loading: true,
+        needs_paint: true,
     };
     event_loop.run_app(&mut app).map_err(|e| Error::Engine(format!("winit run: {e}")))
 }
@@ -101,6 +102,8 @@ struct App {
     chrome_installed: bool,
     /// Previous-frame loading state of the content view (to detect load completion).
     content_loading: bool,
+    /// Repaint requested (input/nav/startup). Avoids constant-spin CPU when idle.
+    needs_paint: bool,
 }
 
 impl ApplicationHandler for App {
@@ -108,6 +111,8 @@ impl ApplicationHandler for App {
         if self.window.is_some() {
             return;
         }
+        // Sleep until there's work (redraw/input) instead of spinning at max speed.
+        event_loop.set_control_flow(winit::event_loop::ControlFlow::Wait);
         let attrs = Window::default_attributes()
             .with_title("Sentinel")
             .with_inner_size(LogicalSize::new(self.width, self.height))
@@ -173,6 +178,15 @@ impl ApplicationHandler for App {
     }
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
+        // Any input should trigger a repaint (hover, caret, click feedback).
+        if matches!(
+            event,
+            WindowEvent::CursorMoved { .. }
+                | WindowEvent::MouseInput { .. }
+                | WindowEvent::KeyboardInput { .. }
+        ) {
+            self.needs_paint = true;
+        }
         match event {
             WindowEvent::CloseRequested => event_loop.exit(),
             WindowEvent::RedrawRequested => self.paint(),
@@ -232,8 +246,15 @@ impl ApplicationHandler for App {
     fn about_to_wait(&mut self, _event_loop: &ActiveEventLoop) {
         self.apply_nav_commands();
         self.install_bridges_if_ready();
-        if let Some(window) = &self.window {
-            window.request_redraw();
+        // Keep pumping while a page loads; otherwise repaint only when something
+        // changed. This avoids burning CPU on a static, idle page.
+        let loading = self.chrome.as_ref().is_some_and(|c| c.is_loading())
+            || self.content.as_ref().is_some_and(|c| c.is_loading());
+        if loading || self.needs_paint {
+            if let Some(window) = &self.window {
+                window.request_redraw();
+            }
+            self.needs_paint = false;
         }
     }
 }
@@ -265,6 +286,7 @@ impl App {
                 if let (Some(router), Some(executor)) = (&self.router, &self.executor) {
                     let _ = content.install_native_now(router.clone(), executor.clone(), origin);
                 }
+                self.needs_paint = true; // reflect onSentinelReady output
             }
             self.content_loading = loading;
         }
@@ -276,6 +298,9 @@ impl App {
             let mut q = self.nav_queue.lock().unwrap_or_else(|p| p.into_inner());
             std::mem::take(&mut *q)
         };
+        if !commands.is_empty() {
+            self.needs_paint = true;
+        }
         for cmd in commands {
             let content = match &self.content {
                 Some(c) => c,
@@ -338,8 +363,8 @@ impl App {
         // Clear to the chrome background so any gap is not garbage.
         buf.fill(0x20242b);
 
-        blit(&mut buf, win_w, win_h, 0, chrome);
-        blit(&mut buf, win_w, win_h, bar_h, content);
+        chrome.blit_into(&mut buf, win_w, win_h, 0);
+        content.blit_into(&mut buf, win_w, win_h, bar_h);
         let _ = buf.present();
     }
 
@@ -348,30 +373,6 @@ impl App {
     }
     fn height_px(&self) -> u32 {
         self.window.as_ref().map(|w| w.inner_size().height.max(1)).unwrap_or(self.height)
-    }
-}
-
-/// Blit a view's premultiplied-BGRA snapshot into `buf` at vertical offset `y0`.
-fn blit(buf: &mut [u32], buf_w: u32, buf_h: u32, y0: u32, page: &PageView) {
-    let Some((w, h, row_bytes, bgra)) = page.snapshot_bgra() else {
-        return;
-    };
-    for y in 0..h {
-        let dst_y = y0 + y;
-        if dst_y >= buf_h {
-            break;
-        }
-        let row = (y * row_bytes) as usize;
-        for x in 0..w.min(buf_w) {
-            let i = row + (x * 4) as usize;
-            if i + 2 >= bgra.len() {
-                continue;
-            }
-            let b = bgra[i] as u32;
-            let g = bgra[i + 1] as u32;
-            let r = bgra[i + 2] as u32;
-            buf[(dst_y * buf_w + x) as usize] = (r << 16) | (g << 8) | b;
-        }
     }
 }
 

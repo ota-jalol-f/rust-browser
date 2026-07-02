@@ -158,12 +158,45 @@ impl PageView {
     }
 
     /// Copy the current frame as premultiplied-BGRA bytes + row stride:
-    /// `(width, height, row_bytes, pixels)`.
+    /// `(width, height, row_bytes, pixels)`. Prefer [`Self::blit_into`] in a render
+    /// loop — this allocates a copy each call.
     pub fn snapshot_bgra(&self) -> Option<(u32, u32, u32, Vec<u8>)> {
         let mut surface = self.view.surface()?;
         let row_bytes = surface.row_bytes();
         let pixels = surface.lock_pixels()?;
         Some((self.width, self.height, row_bytes, pixels.to_vec()))
+    }
+
+    /// Convert this view's surface (premultiplied BGRA) directly into a softbuffer
+    /// `0x00RRGGBB` buffer of width `buf_w`/height `buf_h`, at vertical offset `y0`.
+    /// No intermediate allocation — the hot path for the render loop.
+    pub fn blit_into(&self, buf: &mut [u32], buf_w: u32, buf_h: u32, y0: u32) {
+        let mut surface = match self.view.surface() {
+            Some(s) => s,
+            None => return,
+        };
+        let row_bytes = surface.row_bytes() as usize;
+        let px = match surface.lock_pixels() {
+            Some(p) => p,
+            None => return,
+        };
+        let cols = self.width.min(buf_w) as usize;
+        for y in 0..self.height {
+            let dst_y = y0 + y;
+            if dst_y >= buf_h {
+                break;
+            }
+            let src = y as usize * row_bytes;
+            let dst = (dst_y * buf_w) as usize;
+            let (src_row, dst_row) = (&px[src..], &mut buf[dst..dst + cols]);
+            for x in 0..cols {
+                let i = x * 4;
+                let b = src_row[i] as u32;
+                let g = src_row[i + 1] as u32;
+                let r = src_row[i + 2] as u32;
+                dst_row[x] = (r << 16) | (g << 8) | b;
+            }
+        }
     }
 
     /// Install the `window.native` capability bridge NOW (call from the host loop
