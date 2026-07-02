@@ -166,49 +166,38 @@ impl PageView {
         Some((self.width, self.height, row_bytes, pixels.to_vec()))
     }
 
-    /// Install the `window.native` capability bridge on each page's DOM-ready.
-    pub fn install_bridge<B, E>(
+    /// Install the `window.native` capability bridge NOW (call from the host loop
+    /// after the page finished loading — NOT from a DOM-ready callback, which runs
+    /// inside `Engine::update` and crashes when multiple views exist).
+    ///
+    /// # Errors
+    /// [`Error::Engine`] if the bridge script fails to install.
+    pub fn install_native_now<B, E>(
         &self,
         router: SharedRouter<B>,
         executor: SharedExecutor<E>,
-        fallback_origin: Origin,
-    ) where
+        origin: Origin,
+    ) -> Result<()>
+    where
         B: PermissionBroker + 'static,
         E: RequestExecutor + 'static,
     {
-        self.view.set_dom_ready_callback(move |view, _frame_id, is_main_frame, url| {
-            if !is_main_frame {
-                return;
-            }
-            let origin = Origin::parse(&url).unwrap_or_else(|_| fallback_origin.clone());
-            if let Err(e) =
-                crate::jsbridge::install_native(view, router.clone(), executor.clone(), origin)
-            {
-                eprintln!("window.native install failed: {e}");
-            }
-        });
+        crate::jsbridge::install_native(&self.view, router, executor, origin)
     }
 
-    /// Install a chrome-control bridge: a `window.__sentinelNav(cmd)` function that
-    /// pushes the command string onto `queue` for the host loop to apply. Used by
-    /// the address-bar chrome to drive the content view.
-    pub fn install_nav_bridge(&self, queue: Arc<Mutex<Vec<String>>>) {
-        self.view.set_dom_ready_callback(move |view, _frame_id, is_main_frame, _url| {
-            if !is_main_frame {
-                return;
+    /// Install the chrome-control `window.__sentinelNav(cmd)` function NOW, which
+    /// pushes command strings onto `queue` for the host loop to apply. Call from the
+    /// host loop after the chrome page loaded (see [`Self::install_native_now`]).
+    pub fn install_nav_now(&self, queue: Arc<Mutex<Vec<String>>>) {
+        let ctx = self.view.lock_js_context();
+        let global = ctx.global_object();
+        let callback = JSObject::new_function_with_callback(&ctx, move |ctx, _this, args| {
+            if let Some(s) = args.first().and_then(|v| v.as_string().ok()) {
+                queue.lock().unwrap_or_else(|p| p.into_inner()).push(s.to_string());
             }
-            let queue = queue.clone();
-            let ctx = view.lock_js_context();
-            let global = ctx.global_object();
-            let callback = JSObject::new_function_with_callback(&ctx, move |ctx, _this, args| {
-                if let Some(s) = args.first().and_then(|v| v.as_string().ok()) {
-                    queue.lock().unwrap_or_else(|p| p.into_inner()).push(s.to_string());
-                }
-                Ok(JSValue::new_string(ctx, "ok"))
-            });
-            let _ =
-                global.set_property("__sentinelNav", &callback, JSPropertyAttributes::default());
+            Ok(JSValue::new_string(ctx, "ok"))
         });
+        let _ = global.set_property("__sentinelNav", &callback, JSPropertyAttributes::default());
     }
 
     /// Forward a mouse move to `(x, y)` (view-relative pixels).

@@ -73,6 +73,9 @@ pub fn run(config: &BrowserConfig, home_html: String) -> Result<()> {
         history: History::new(),
         router: None,
         executor: None,
+        home_origin: Origin::parse(BUILTIN_ORIGIN).expect("valid"),
+        chrome_installed: false,
+        content_loading: true,
     };
     event_loop.run_app(&mut app).map_err(|e| Error::Engine(format!("winit run: {e}")))
 }
@@ -93,6 +96,11 @@ struct App {
     history: History,
     router: Option<Router>,
     executor: Option<Executor>,
+    home_origin: Origin,
+    /// Whether the chrome's nav bridge has been installed (chrome loads once).
+    chrome_installed: bool,
+    /// Previous-frame loading state of the content view (to detect load completion).
+    content_loading: bool,
 }
 
 impl ApplicationHandler for App {
@@ -136,24 +144,24 @@ impl ApplicationHandler for App {
             Err(e) => return fail(event_loop, format!("content view: {e}")),
         };
 
-        // Chrome drives navigation via the nav queue.
-        chrome.install_nav_bridge(self.nav_queue.clone());
+        // Load both pages. The JS bridges are installed later, from the main loop,
+        // once each page finishes loading — NOT from a DOM-ready callback (which
+        // runs inside Engine::update and crashes with multiple views).
         let _ = chrome.load_html(CHROME_HTML);
 
-        // Content gets the window.native bridge (home origin pre-granted).
         let router: Router = Arc::new(Mutex::new(BridgeRouter::new(InMemoryBroker::new())));
         let executor: Executor =
             Arc::new(Mutex::new(HostRouter::new(DeviceHost::new(SystemBackend), DllHost::new())));
-        let fallback = Origin::parse(BUILTIN_ORIGIN).expect("BUILTIN_ORIGIN is valid");
+        let home_origin = Origin::parse(BUILTIN_ORIGIN).expect("BUILTIN_ORIGIN is valid");
         {
             let mut g = router.lock().unwrap_or_else(|p| p.into_inner());
             for cap in Capability::ALL {
-                g.broker_mut().set(&fallback, cap, PermissionState::Granted);
+                g.broker_mut().set(&home_origin, cap, PermissionState::Granted);
             }
         }
-        content.install_bridge(router.clone(), executor.clone(), fallback);
         let _ = content.load_html(&self.home_html);
 
+        self.home_origin = home_origin;
         self.bar_h = bar_h;
         self.window = Some(window);
         self.surface = Some(surface);
@@ -223,6 +231,7 @@ impl ApplicationHandler for App {
 
     fn about_to_wait(&mut self, _event_loop: &ActiveEventLoop) {
         self.apply_nav_commands();
+        self.install_bridges_if_ready();
         if let Some(window) = &self.window {
             window.request_redraw();
         }
@@ -230,6 +239,37 @@ impl ApplicationHandler for App {
 }
 
 impl App {
+    /// Install the JS bridges from the main loop once their pages have loaded —
+    /// safe here (outside `Engine::update`), unlike a DOM-ready callback. Re-installs
+    /// window.native on the content view after each navigation (the JS context resets).
+    fn install_bridges_if_ready(&mut self) {
+        // Chrome nav bridge: install once, after the chrome page loads.
+        if !self.chrome_installed {
+            if let Some(chrome) = &self.chrome {
+                if !chrome.is_loading() {
+                    chrome.install_nav_now(self.nav_queue.clone());
+                    self.chrome_installed = true;
+                }
+            }
+        }
+
+        // Content window.native: (re)install on each load-completion transition.
+        if let Some(content) = &self.content {
+            let loading = content.is_loading();
+            if self.content_loading && !loading {
+                let origin = self
+                    .history
+                    .current()
+                    .and_then(|u| Origin::parse(u).ok())
+                    .unwrap_or_else(|| self.home_origin.clone());
+                if let (Some(router), Some(executor)) = (&self.router, &self.executor) {
+                    let _ = content.install_native_now(router.clone(), executor.clone(), origin);
+                }
+            }
+            self.content_loading = loading;
+        }
+    }
+
     /// Drain navigation commands from the chrome and apply them to the content view.
     fn apply_nav_commands(&mut self) {
         let commands: Vec<String> = {
