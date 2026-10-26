@@ -20,5 +20,7 @@
 mod registry;
 mod result;
 
-pub use registry::{Plugin, PluginDescriptor, PluginError, PluginKind, PluginRegistry};
+pub use registry::{
+    Plugin, PluginDescriptor, PluginError, PluginKind, PluginRegistry, PluginStream, StreamStep,
+};
 pub use result::PluginResult;

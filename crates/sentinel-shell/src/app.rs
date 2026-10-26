@@ -14,9 +14,11 @@ use sentinel_bridge::BridgeRouter;
 use sentinel_core::{BrowserConfig, Error, Result};
 use sentinel_device_host::{DeviceHost, SystemBackend};
 use sentinel_dll_host::DllHost;
-use sentinel_engine::jsbridge::{install_async_bridge, resolve_call, PendingCall, PendingCalls};
+use sentinel_engine::jsbridge::{
+    emit_chunk, install_async_bridge, resolve_call, PendingCall, PendingCalls,
+};
 use sentinel_engine::page::{Engine, PageView, SpecialKey};
-use sentinel_plugin::{PluginRegistry, PluginResult};
+use sentinel_plugin::{PluginRegistry, PluginResult, PluginStream, StreamStep};
 use sentinel_hosts::HostRouter;
 use sentinel_permissions::{Capability, InMemoryBroker, Origin, PermissionBroker, PermissionState};
 use winit::application::ApplicationHandler;
@@ -60,6 +62,17 @@ struct Tab {
     plugin_pending: PendingCalls,
 }
 
+/// A running streaming plugin call: polled once per frame; its chunks and final
+/// result are delivered to the originating tab's view.
+struct ActiveStream {
+    /// Index of the tab whose page made the call (kept valid across tab close).
+    tab: usize,
+    /// The JS call id to emit/resolve against.
+    call_id: f64,
+    /// The running operation.
+    stream: Box<dyn PluginStream>,
+}
+
 /// Enumerate USB + serial devices in Rust for injection into the dashboard.
 pub fn device_snapshot_json() -> String {
     use sentinel_ipc::{Request, RequestExecutor};
@@ -69,6 +82,20 @@ pub fn device_snapshot_json() -> String {
     let usb_json = serde_json::to_string(&usb).unwrap_or_else(|_| "null".into());
     let serial_json = serde_json::to_string(&serial).unwrap_or_else(|_| "null".into());
     format!("{{\"usb\":{usb_json},\"serial\":{serial_json}}}")
+}
+
+/// If `request_json` is a streaming run (`{kind:"run", stream:true, id, request}`),
+/// return `(id, request)`; otherwise `None` (handled as a one-shot call).
+fn parse_stream_run(request_json: &str) -> Option<(String, String)> {
+    let value: serde_json::Value = serde_json::from_str(request_json).ok()?;
+    let is_stream = value.get("stream").and_then(|s| s.as_bool()).unwrap_or(false);
+    if value.get("kind").and_then(|k| k.as_str()) == Some("run") && is_stream {
+        let id = value.get("id").and_then(|x| x.as_str()).unwrap_or("").to_string();
+        let request = value.get("request").and_then(|x| x.as_str()).unwrap_or("").to_string();
+        Some((id, request))
+    } else {
+        None
+    }
 }
 
 /// Parse a `window.share` request (`{kind:'run'|'list', id?, request?}`) and
@@ -132,6 +159,7 @@ pub fn run(config: &BrowserConfig, home_html: String) -> Result<()> {
         router: None,
         executor: None,
         registry: crate::plugins::builtin_registry(),
+        active_streams: Vec::new(),
         home_origin: Origin::parse(BUILTIN_ORIGIN).expect("valid"),
         chrome_installed: false,
         needs_tab_sync: true,
@@ -159,6 +187,8 @@ struct App {
     executor: Option<Executor>,
     /// Built-in plugins (`share.RunPlugin` / `GetPlugins` dispatch target).
     registry: PluginRegistry,
+    /// Running streaming plugin calls (`share.RunPluginStream`), polled each frame.
+    active_streams: Vec<ActiveStream>,
     home_origin: Origin,
     /// Whether the chrome's nav bridge has been installed (chrome loads once).
     chrome_installed: bool,
@@ -339,6 +369,7 @@ impl ApplicationHandler for App {
         self.apply_nav_commands();
         self.install_bridges_if_ready();
         self.process_plugin_calls();
+        self.poll_streams();
         if self.chrome_installed && self.needs_tab_sync {
             self.sync_tabs_to_chrome();
             self.needs_tab_sync = false;
@@ -473,6 +504,9 @@ impl App {
             if let Some(tab) = self.tabs.get(self.active) {
                 tab.plugin_pending.lock().unwrap_or_else(|p| p.into_inner()).clear();
             }
+            // Abandon streaming calls for the navigating tab.
+            let active = self.active;
+            self.active_streams.retain(|s| s.tab != active);
         }
     }
 
@@ -504,6 +538,13 @@ impl App {
             self.active -= 1;
         } else if self.active >= self.tabs.len() {
             self.active = self.tabs.len() - 1;
+        }
+        // Abandon streams of the closed tab, and fix up indices of those after it.
+        self.active_streams.retain(|s| s.tab != i);
+        for s in &mut self.active_streams {
+            if s.tab > i {
+                s.tab -= 1;
+            }
         }
     }
 
@@ -552,16 +593,67 @@ impl App {
                     let g = r.lock().unwrap_or_else(|p| p.into_inner());
                     g.broker().check(&c.origin, Capability::Plugin) == PermissionState::Granted
                 });
-                let result_json = if granted {
-                    dispatch_plugin_request(&mut self.registry, &c.request)
+                if !granted {
+                    if let Some(tab) = self.tabs.get(i) {
+                        let msg = PluginResult::fail("plugin access not permitted for this origin")
+                            .to_json();
+                        let _ = resolve_call(tab.view.view(), c.call_id, &msg);
+                    }
+                    continue;
+                }
+                // A streaming call (RunPluginStream) starts a long-running
+                // operation polled each frame; everything else resolves one-shot.
+                if let Some((id, req)) = parse_stream_run(&c.request) {
+                    match self.registry.dispatch_stream(&id, &req) {
+                        Ok(stream) => {
+                            self.active_streams.push(ActiveStream {
+                                tab: i,
+                                call_id: c.call_id,
+                                stream,
+                            });
+                        }
+                        Err(result) => {
+                            if let Some(tab) = self.tabs.get(i) {
+                                let _ = resolve_call(tab.view.view(), c.call_id, &result.to_json());
+                            }
+                        }
+                    }
                 } else {
-                    PluginResult::fail("plugin access not permitted for this origin").to_json()
-                };
-                // Resolve on the SAME tab that made the call. The JS shim no-ops on
-                // an unknown id (e.g. that tab navigated), so there is no stale or
-                // cross-document delivery.
-                if let Some(tab) = self.tabs.get(i) {
-                    let _ = resolve_call(tab.view.view(), c.call_id, &result_json);
+                    let result_json = dispatch_plugin_request(&mut self.registry, &c.request);
+                    // The JS shim no-ops on an unknown id (e.g. that tab navigated),
+                    // so there is no stale or cross-document delivery.
+                    if let Some(tab) = self.tabs.get(i) {
+                        let _ = resolve_call(tab.view.view(), c.call_id, &result_json);
+                    }
+                }
+            }
+        }
+    }
+
+    /// Advance each running streaming plugin call by one step: deliver a chunk, or
+    /// resolve and drop it when it completes. Polled once per frame so a long
+    /// operation never blocks the UI.
+    fn poll_streams(&mut self) {
+        let mut i = 0;
+        while i < self.active_streams.len() {
+            let step = self.active_streams[i].stream.poll();
+            let tab = self.active_streams[i].tab;
+            let call_id = self.active_streams[i].call_id;
+            match step {
+                StreamStep::Chunk(chunk) => {
+                    if let Some(t) = self.tabs.get(tab) {
+                        let _ = emit_chunk(t.view.view(), call_id, &chunk);
+                    }
+                    i += 1;
+                }
+                StreamStep::Pending => {
+                    i += 1;
+                }
+                StreamStep::Done(result) => {
+                    if let Some(t) = self.tabs.get(tab) {
+                        let _ = resolve_call(t.view.view(), call_id, &result.to_json());
+                    }
+                    self.active_streams.remove(i);
                 }
             }
         }

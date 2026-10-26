@@ -158,6 +158,14 @@ Faqat **SigPlusNET (imzo)** toza managed — eng katta xavf shu yerda.
    oxirida `resolve`. Isbot: `tests/async_bridge.rs` (callId→resolve) va `tests/async_stream.rs`
    (2 chunk + final) — ikkalasi haqiqiy Ultralight JSC'da o'tdi. Busy/re-entrancy guard keyin
    registry/overlay bosqichida.
+1b. **Streaming plugin BAJARILISH modeli** ✅ BAJARILDI: `Plugin::execute_stream` →
+   `Box<dyn PluginStream>`; `PluginStream::poll()` → `Chunk`/`Done`/`Pending`; host (shell) har
+   kadrda bitta qadam poll qiladi (uzoq chip-o'qish/jonli preview UI'ni bloklamaydi), `Chunk` →
+   `emit_chunk`, `Done` → `resolve`. Non-streaming plugin streaming API orqali chaqirilsa — bir
+   martalik `execute` natijasiga tushadi. Tab yopilish/navigatsiyada oqimlar tashlanadi (indekslar
+   to'g'rilanadi). Uchdan-uchga isbot: registry `streaming_plugin_emits_chunks_then_final`, shell
+   `reader_plugin_streams_status_then_final` (demo `Asbt.Reader`: status chunks → final), bridge
+   `async_stream`. **Referensdagi "stream uzatib bo'lmaydi" muammosi to'liq yopildi.**
 2. **Plugin UI host**: modal device oynalari (imzo/ID/foto) WPF edi — endi **Ultralight HTML
    overlay** (uchinchi overlay view yoki ikkinchi winit oyna) + input capture.
 3. **Rust plugin trait + registry** ✅ BAJARILDI: `sentinel-plugin` krati — `Plugin` trait
