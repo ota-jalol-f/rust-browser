@@ -149,9 +149,15 @@ Faqat **SigPlusNET (imzo)** toza managed — eng katta xavf shu yerda.
   beruvchi config fayli.
 
 ### Faza 2 — Plugin yadro infratuzilmasi (Rust, pluginlardan oldin)
-1. **Async Promise bridge**: pv-next `await signpad.Capture()` qiladi, lekin hozirgi
-   `__sentinelNativeCall` sinxron. JS `callId` uzatadi; Rust keyin main-loopdan
-   `eval("__sentinelResolve(id, json)")` chaqiradi. Busy/re-entrancy guard shu yerda.
+1. **Async Promise bridge + STREAMING** ✅ BAJARILDI (engine `jsbridge`, headless testlar yashil):
+   `window.share.RunPlugin/GetPlugins` Promise qaytaradi; JS `callId` beradi, native
+   `__sentinelEnqueue(callId, request)` uni hostga uzatadi, host keyin `resolve_call`
+   (`__sentinelResolve`) bilan yakunlaydi. **Streaming** (referens .NET ko'prigida yo'q edi —
+   stream uzatib bo'lmasdi): `share.RunPluginStream(id, req, onChunk)` oraliq `emit_chunk`
+   (`__sentinelEmit`) kadrlarini oladi (idbox chip-status hodisalari, jonli preview, progress),
+   oxirida `resolve`. Isbot: `tests/async_bridge.rs` (callId→resolve) va `tests/async_stream.rs`
+   (2 chunk + final) — ikkalasi haqiqiy Ultralight JSC'da o'tdi. Busy/re-entrancy guard keyin
+   registry/overlay bosqichida.
 2. **Plugin UI host**: modal device oynalari (imzo/ID/foto) WPF edi — endi **Ultralight HTML
    overlay** (uchinchi overlay view yoki ikkinchi winit oyna) + input capture.
 3. **Rust plugin trait + registry** ✅ BAJARILDI: `sentinel-plugin` krati — `Plugin` trait

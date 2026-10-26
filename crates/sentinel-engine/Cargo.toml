@@ -9,7 +9,7 @@ license.workspace = true
 # Ultralight SDK. Enable with `--features ultralight` on a machine where the
 # Ultralight shared libraries (UltralightCore, WebCore, Ultralight) are loadable.
 default = []
-ultralight = ["dep:ul-next", "dep:sentinel-bridge", "dep:sentinel-permissions", "dep:sentinel-ipc"]
+ultralight = ["dep:ul-next", "dep:sentinel-bridge", "dep:sentinel-permissions", "dep:sentinel-ipc", "dep:serde_json"]
 
 [dependencies]
 sentinel-core = { path = "../sentinel-core" }
@@ -24,6 +24,8 @@ sentinel-ipc = { path = "../sentinel-ipc", optional = true }
 # the `ultralight` feature is off. (Browser plugin/page DLL loading — the project's
 # "load DLLs directly" goal — is a separate, later subsystem and unaffected.)
 ul-next = { version = "0.5.4", features = ["linked"], optional = true }
+# Used by the async plugin bridge to safely embed strings as JS literals.
+serde_json = { version = "1", optional = true }
 
 [dev-dependencies]
 # Used by the JS-bridge integration test as a real RequestExecutor + policy.
