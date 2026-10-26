@@ -45,6 +45,15 @@ enum Focus {
     Content,
 }
 
+/// One browser tab: its content view plus the per-tab state the shell tracks.
+struct Tab {
+    view: PageView,
+    /// Whether this tab still shows the built-in dashboard (home-origin trust).
+    is_home: bool,
+    /// Previous-frame loading state, to detect load completion.
+    loading: bool,
+}
+
 /// Enumerate USB + serial devices in Rust for injection into the dashboard.
 pub fn device_snapshot_json() -> String {
     use sentinel_ipc::{Request, RequestExecutor};
@@ -54,6 +63,21 @@ pub fn device_snapshot_json() -> String {
     let usb_json = serde_json::to_string(&usb).unwrap_or_else(|_| "null".into());
     let serial_json = serde_json::to_string(&serial).unwrap_or_else(|_| "null".into());
     format!("{{\"usb\":{usb_json},\"serial\":{serial_json}}}")
+}
+
+/// A short tab label from the view's current URL (host), or "Dashboard" when the
+/// view has no real URL (the built-in `load_html` start page).
+fn tab_title(view: &PageView) -> String {
+    match view.current_url() {
+        Some(u) if !u.is_empty() && !u.eq_ignore_ascii_case("about:blank") => {
+            let host = u
+                .strip_prefix("https://")
+                .or_else(|| u.strip_prefix("http://"))
+                .unwrap_or(u.as_str());
+            host.split('/').next().unwrap_or(host).to_string()
+        }
+        _ => "Dashboard".to_string(),
+    }
 }
 
 /// Run the browser. `home_html` is shown in the content view at startup.
@@ -71,7 +95,8 @@ pub fn run(config: &BrowserConfig, home_html: String) -> Result<()> {
         surface: None,
         engine: None,
         chrome: None,
-        content: None,
+        tabs: Vec::new(),
+        active: 0,
         bar_h: BAR_HEIGHT as u32,
         cursor: PhysicalPosition::new(0.0, 0.0),
         focus: Focus::Content,
@@ -80,8 +105,7 @@ pub fn run(config: &BrowserConfig, home_html: String) -> Result<()> {
         executor: None,
         home_origin: Origin::parse(BUILTIN_ORIGIN).expect("valid"),
         chrome_installed: false,
-        content_loading: true,
-        content_is_home: true,
+        needs_tab_sync: true,
         last_frame: Instant::now(),
     };
     event_loop.run_app(&mut app).map_err(|e| Error::Engine(format!("winit run: {e}")))
@@ -95,7 +119,9 @@ struct App {
     surface: Option<softbuffer::Surface<Rc<Window>, Rc<Window>>>,
     engine: Option<Engine>,
     chrome: Option<PageView>,
-    content: Option<PageView>,
+    /// Open tabs; each owns its own content view. `active` indexes the shown one.
+    tabs: Vec<Tab>,
+    active: usize,
     bar_h: u32,
     cursor: PhysicalPosition<f64>,
     focus: Focus,
@@ -105,12 +131,10 @@ struct App {
     home_origin: Origin,
     /// Whether the chrome's nav bridge has been installed (chrome loads once).
     chrome_installed: bool,
-    /// Previous-frame loading state of the content view (to detect load completion).
-    content_loading: bool,
-    /// Whether the content view still shows the built-in startup dashboard — the
-    /// only page trusted with the home origin's pre-granted capabilities. Cleared
-    /// the moment the user navigates away via the address bar.
-    content_is_home: bool,
+    /// Set when the tab strip / address bar in the chrome needs re-rendering
+    /// (tab added/closed/selected, or the active tab finished loading). Flushed
+    /// once per frame in `about_to_wait`.
+    needs_tab_sync: bool,
     /// Time of the last painted frame (for ~60 fps pacing).
     last_frame: Instant,
 }
@@ -180,7 +204,8 @@ impl ApplicationHandler for App {
         self.surface = Some(surface);
         self.engine = Some(engine);
         self.chrome = Some(chrome);
-        self.content = Some(content);
+        self.tabs = vec![Tab { view: content, is_home: true, loading: true }];
+        self.active = 0;
         self.router = Some(router);
         self.executor = Some(executor);
     }
@@ -199,8 +224,8 @@ impl ApplicationHandler for App {
                 if let Some(c) = self.chrome.as_mut() {
                     c.resize(win_w, self.bar_h);
                 }
-                if let Some(c) = self.content.as_mut() {
-                    c.resize(win_w, content_h);
+                if let Some(t) = self.tabs.get_mut(self.active) {
+                    t.view.resize(win_w, content_h);
                 }
                 if let Some(window) = &self.window {
                     window.request_redraw();
@@ -214,8 +239,8 @@ impl ApplicationHandler for App {
                     MouseScrollDelta::PixelDelta(p) => (p.x as i32, p.y as i32),
                 };
                 if self.cursor.y as i32 >= self.bar_h as i32 {
-                    if let Some(c) = &self.content {
-                        c.scroll(dx, dy);
+                    if let Some(t) = self.tabs.get(self.active) {
+                        t.view.scroll(dx, dy);
                     }
                 } else if let Some(c) = &self.chrome {
                     c.scroll(dx, dy);
@@ -228,8 +253,8 @@ impl ApplicationHandler for App {
                     if let Some(c) = &self.chrome {
                         c.mouse_move(x, y);
                     }
-                } else if let Some(c) = &self.content {
-                    c.mouse_move(x, y - self.bar_h as i32);
+                } else if let Some(t) = self.tabs.get(self.active) {
+                    t.view.mouse_move(x, y - self.bar_h as i32);
                 }
             }
             WindowEvent::MouseInput { state, button, .. } => {
@@ -243,8 +268,8 @@ impl ApplicationHandler for App {
                         }
                     } else {
                         self.focus = Focus::Content;
-                        if let Some(c) = &self.content {
-                            c.mouse_button(x, y - self.bar_h as i32, pressed);
+                        if let Some(t) = self.tabs.get(self.active) {
+                            t.view.mouse_button(x, y - self.bar_h as i32, pressed);
                         }
                     }
                 }
@@ -252,7 +277,7 @@ impl ApplicationHandler for App {
             WindowEvent::KeyboardInput { event, .. } => {
                 let target = match self.focus {
                     Focus::Chrome => self.chrome.as_ref(),
-                    Focus::Content => self.content.as_ref(),
+                    Focus::Content => self.tabs.get(self.active).map(|t| &t.view),
                 };
                 if let Some(page) = target {
                     let pressed = event.state == ElementState::Pressed;
@@ -277,6 +302,10 @@ impl ApplicationHandler for App {
     fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
         self.apply_nav_commands();
         self.install_bridges_if_ready();
+        if self.chrome_installed && self.needs_tab_sync {
+            self.sync_tabs_to_chrome();
+            self.needs_tab_sync = false;
+        }
         // Continuous rendering paced to ~60 fps (smooth hover/scroll/animation
         // without spinning the CPU unbounded).
         if let Some(window) = &self.window {
@@ -297,25 +326,26 @@ impl App {
                 if !chrome.is_loading() {
                     chrome.install_nav_now(self.nav_queue.clone());
                     self.chrome_installed = true;
+                    self.needs_tab_sync = true;
                 }
             }
         }
 
-        // On each content load-completion: (re)install window.native for the new
-        // page's origin, and sync the address bar to the actual URL.
-        let loading = self.content.as_ref().is_some_and(|c| c.is_loading());
-        if self.content_loading && !loading {
-            let url = self.content.as_ref().and_then(|c| c.current_url());
+        // On the active tab's load-completion: (re)install window.native for the
+        // new page's origin, and sync the address bar to the actual URL.
+        let loading = self.tabs.get(self.active).is_some_and(|t| t.view.is_loading());
+        let was_loading = self.tabs.get(self.active).is_some_and(|t| t.loading);
+        if was_loading && !loading {
+            let url = self.tabs.get(self.active).and_then(|t| t.view.current_url());
             // The home origin's pre-granted capabilities are reserved for the
-            // built-in startup dashboard ONLY. That requires BOTH that no navigation
-            // has occurred (`content_is_home`) AND that the view still has no real
-            // URL — the `load_html` dashboard reports none / about:blank. Any page
-            // with a real URL is classified by that URL regardless of how it was
-            // reached (address bar, link click, or a script `location` change): its
-            // own parsed origin, or an opaque privilege-less origin for
-            // file:/data:/unparseable URLs. So home privileges can never leak to a
-            // navigated page, even one the dashboard navigated itself to.
-            let is_home = self.content_is_home
+            // built-in startup dashboard ONLY: the tab must still be `is_home`
+            // (never navigated) AND the view must have no real URL (the load_html
+            // dashboard reports none / about:blank). Any page with a real URL is
+            // classified by that URL regardless of how it was reached (address bar,
+            // link click, or a script `location` change): its own parsed origin, or
+            // an opaque privilege-less origin for file:/data:/unparseable URLs. So
+            // home privileges can never leak to a navigated page.
+            let is_home = self.tabs.get(self.active).is_some_and(|t| t.is_home)
                 && url
                     .as_deref()
                     .is_none_or(|u| u.is_empty() || u.eq_ignore_ascii_case("about:blank"));
@@ -326,17 +356,17 @@ impl App {
                     .and_then(|u| Origin::parse(u).ok())
                     .unwrap_or_else(Origin::opaque)
             };
-            if let (Some(content), Some(router), Some(executor)) =
-                (&self.content, &self.router, &self.executor)
+            if let (Some(tab), Some(router), Some(executor)) =
+                (self.tabs.get(self.active), &self.router, &self.executor)
             {
-                let _ = content.install_native_now(router.clone(), executor.clone(), origin);
+                let _ = tab.view.install_native_now(router.clone(), executor.clone(), origin);
             }
-            if let (Some(u), Some(chrome)) = (url, &self.chrome) {
-                let js = serde_json::to_string(&u).unwrap_or_else(|_| "\"\"".into());
-                chrome.eval(&format!("window.setUrl && window.setUrl({js})"));
-            }
+            // Re-render the address bar + tab titles for the completed load.
+            self.needs_tab_sync = true;
         }
-        self.content_loading = loading;
+        if let Some(tab) = self.tabs.get_mut(self.active) {
+            tab.loading = loading;
+        }
     }
 
     /// Drain navigation commands from the chrome and apply them to the content view
@@ -351,31 +381,93 @@ impl App {
         if commands.is_empty() {
             return;
         }
-        let mut navigated = false;
-        {
-            let Some(content) = &self.content else {
-                return;
-            };
-            for cmd in commands {
-                if let Some(url) = cmd.strip_prefix("nav ") {
-                    let _ = content.load_url(&normalize_url(url));
-                    navigated = true;
-                } else if cmd == "back" {
-                    content.go_back();
-                    navigated = true;
-                } else if cmd == "forward" {
-                    content.go_forward();
-                    navigated = true;
-                } else if cmd == "reload" {
-                    content.reload();
+        for cmd in commands {
+            // Per-tab navigation acts on the active tab. `nav`/`back`/`forward`
+            // leave the dashboard, dropping its home-origin trust (see
+            // `install_bridges_if_ready`).
+            if let Some(url) = cmd.strip_prefix("nav ") {
+                if let Some(tab) = self.tabs.get_mut(self.active) {
+                    let _ = tab.view.load_url(&normalize_url(url));
+                    tab.is_home = false;
+                }
+            } else if cmd == "back" {
+                if let Some(tab) = self.tabs.get_mut(self.active) {
+                    tab.view.go_back();
+                    tab.is_home = false;
+                }
+            } else if cmd == "forward" {
+                if let Some(tab) = self.tabs.get_mut(self.active) {
+                    tab.view.go_forward();
+                    tab.is_home = false;
+                }
+            } else if cmd == "reload" {
+                if let Some(tab) = self.tabs.get(self.active) {
+                    tab.view.reload();
+                }
+            } else if cmd == "newtab" {
+                self.open_tab();
+                self.needs_tab_sync = true;
+            } else if let Some(rest) = cmd.strip_prefix("selecttab ") {
+                if let Ok(i) = rest.trim().parse::<usize>() {
+                    if i < self.tabs.len() {
+                        self.active = i;
+                        self.needs_tab_sync = true;
+                    }
+                }
+            } else if let Some(rest) = cmd.strip_prefix("closetab ") {
+                if let Ok(i) = rest.trim().parse::<usize>() {
+                    self.close_tab(i);
+                    self.needs_tab_sync = true;
                 }
             }
         }
-        // Navigating away via the address bar drops the startup dashboard's home
-        // privileges; the next load completes under its real (or opaque) origin.
-        if navigated {
-            self.content_is_home = false;
+    }
+
+    /// Open a new tab showing the built-in dashboard and make it active.
+    fn open_tab(&mut self) {
+        let win_w = self.width_px();
+        let content_h = self.height_px().saturating_sub(self.bar_h).max(1);
+        let view = match self.engine.as_ref().and_then(|e| e.create_page(win_w, content_h).ok()) {
+            Some(v) => v,
+            None => return,
+        };
+        let _ = view.load_html(&self.home_html);
+        self.tabs.push(Tab { view, is_home: true, loading: true });
+        self.active = self.tabs.len() - 1;
+    }
+
+    /// Close the tab at `i`, keeping at least one tab open and fixing `active`.
+    fn close_tab(&mut self, i: usize) {
+        if i >= self.tabs.len() || self.tabs.len() <= 1 {
+            return;
         }
+        self.tabs.remove(i);
+        if self.active > i {
+            self.active -= 1;
+        } else if self.active >= self.tabs.len() {
+            self.active = self.tabs.len() - 1;
+        }
+    }
+
+    /// Push the tab list (titles + active index) and the active URL to the chrome.
+    fn sync_tabs_to_chrome(&self) {
+        let Some(chrome) = &self.chrome else {
+            return;
+        };
+        let items: Vec<String> = self
+            .tabs
+            .iter()
+            .enumerate()
+            .map(|(i, t)| {
+                let title =
+                    serde_json::to_string(&tab_title(&t.view)).unwrap_or_else(|_| "\"\"".into());
+                format!("{{\"title\":{title},\"active\":{}}}", i == self.active)
+            })
+            .collect();
+        chrome.eval(&format!("window.setTabs && window.setTabs([{}])", items.join(",")));
+        let url = self.tabs.get(self.active).and_then(|t| t.view.current_url()).unwrap_or_default();
+        let url_json = serde_json::to_string(&url).unwrap_or_else(|_| "\"\"".into());
+        chrome.eval(&format!("window.setUrl && window.setUrl({url_json})"));
     }
 
     fn paint(&mut self) {
@@ -383,8 +475,8 @@ impl App {
         let win_w = self.width_px();
         let win_h = self.height_px();
         let bar_h = self.bar_h;
-        let (Some(engine), Some(chrome), Some(content), Some(surface)) =
-            (&self.engine, &self.chrome, &self.content, &mut self.surface)
+        let (Some(engine), Some(chrome), Some(surface)) =
+            (&self.engine, &self.chrome, &mut self.surface)
         else {
             return;
         };
@@ -403,7 +495,9 @@ impl App {
         buf.fill(0x20242b);
 
         chrome.blit_into(&mut buf, win_w, win_h, 0);
-        content.blit_into(&mut buf, win_w, win_h, bar_h);
+        if let Some(tab) = self.tabs.get(self.active) {
+            tab.view.blit_into(&mut buf, win_w, win_h, bar_h);
+        }
         let _ = buf.present();
     }
 

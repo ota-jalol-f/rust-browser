@@ -140,8 +140,11 @@ Faqat **SigPlusNET (imzo)** toza managed — eng katta xavf shu yerda.
   saqlanmaydi**. `Engine` endi non-persistent `Session` (`create_session(false, …)`) ishlatadi →
   cookie/localStorage/cache/tarix **diskka yozilmaydi** (fuqaro ma'lumotli kiosk maxfiyligi).
   `sentinel-storage`/`sentinel-crypto` shell'ga ulanmaydi.
-- **Tablar / yangi-oyna ishlovi** ⏭ KEYINGI (qaror: **chrome-HTML tab strip**): tab paneli chrome
-  HTML'ida, har tab = alohida content view, manzil qatori faol tabga bog'lanadi. Katta refaktor.
+- **Tablar (chrome-HTML tab strip)** ✅ BAJARILDI (kompilyatsiya + clippy toza): `content` →
+  `Vec<Tab>` + `active` (har tab o'z content view'i, `is_home`/`loading` holati), input/paint/nav
+  faol tabga yo'naltirilgan. Chrome'da tab strip UI (`setTabs`) + `+`/tanlash/yopish tugmalari;
+  `newtab`/`selecttab <i>`/`closetab <i>` buyruqlari; BAR_HEIGHT 44→78. Vizual/interaktiv tasdiq
+  jonli ishni talab qiladi (`cargo run -p sentinel-shell --features ultralight`).
 - **Boshqariladigan allowlist config**: portal originlariga plugin capability'larini oldindan
   beruvchi config fayli.
 
