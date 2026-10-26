@@ -14,16 +14,32 @@ use sha2::{Digest, Sha256};
 use crate::abi::{FreeFn, InvokeFn, FREE_SYMBOL, INVOKE_SYMBOL};
 
 /// Owns loaded plugin libraries, keyed by an opaque handle issued on load.
-#[derive(Default)]
 pub struct DllHost {
     libs: HashMap<u64, libloading::Library>,
     next_handle: u64,
+    /// When true (the default), a page-driven [`sentinel_ipc::Request::DllLoad`]
+    /// must carry a non-empty SHA-256 hash; an empty hash is refused rather than
+    /// silently skipping the integrity check.
+    require_integrity: bool,
+}
+
+impl Default for DllHost {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl DllHost {
-    /// Create an empty host.
+    /// Create an empty host that requires an integrity hash for page-driven loads.
     pub fn new() -> Self {
-        Self { libs: HashMap::new(), next_handle: 1 }
+        Self { libs: HashMap::new(), next_handle: 1, require_integrity: true }
+    }
+
+    /// Create a host that allows page-driven loads *without* an integrity hash.
+    /// For tests and trusted internal use only — never wire this into the shell's
+    /// page-facing executor.
+    pub fn without_integrity_gate() -> Self {
+        Self { require_integrity: false, ..Self::new() }
     }
 
     /// Load the DLL at `path`, returning a handle.
@@ -126,10 +142,17 @@ impl sentinel_ipc::RequestExecutor for DllHost {
         use sentinel_ipc::{Request, Response};
         match request {
             Request::DllLoad { path, sha256 } => {
-                let expected = if sha256.is_empty() { None } else { Some(sha256.as_str()) };
-                match self.load(std::path::Path::new(&path), expected) {
-                    Ok(handle) => Response::Opened { handle },
-                    Err(e) => Response::Error { message: e.to_string() },
+                if self.require_integrity && sha256.trim().is_empty() {
+                    Response::Error {
+                        message: "dll load requires a non-empty sha256 integrity hash".to_string(),
+                    }
+                } else {
+                    let expected =
+                        if sha256.is_empty() { None } else { Some(sha256.as_str()) };
+                    match self.load(std::path::Path::new(&path), expected) {
+                        Ok(handle) => Response::Opened { handle },
+                        Err(e) => Response::Error { message: e.to_string() },
+                    }
                 }
             }
             Request::DllCall { handle, symbol: _, args } => match self.invoke(handle, &args) {
@@ -217,8 +240,46 @@ mod tests {
     #[test]
     fn executor_dll_load_missing_file_errors() {
         use sentinel_ipc::{Request, RequestExecutor, Response};
-        let mut host = DllHost::new();
+        // Bypass the integrity gate so we exercise the actual load path.
+        let mut host = DllHost::without_integrity_gate();
         let r = host.execute(Request::DllLoad { path: "no_such_file.dll".into(), sha256: String::new() });
         assert!(matches!(r, Response::Error { .. }));
+    }
+
+    #[test]
+    fn executor_dll_load_empty_hash_is_refused_by_default() {
+        use sentinel_ipc::{Request, RequestExecutor, Response};
+        let mut host = DllHost::new();
+        // Empty (and whitespace-only) hashes must be refused at the integrity gate,
+        // before any file read or dlopen — closing the "pass '' to skip" hole.
+        for blank in ["", "   "] {
+            match host.execute(Request::DllLoad {
+                path: "whatever.dll".into(),
+                sha256: blank.to_string(),
+            }) {
+                Response::Error { message } => assert!(
+                    message.contains("integrity hash"),
+                    "expected integrity error, got: {message}"
+                ),
+                _ => panic!("empty hash must be refused by default"),
+            }
+        }
+    }
+
+    #[test]
+    fn executor_dll_load_without_gate_allows_empty_hash() {
+        use sentinel_ipc::{Request, RequestExecutor, Response};
+        let mut host = DllHost::without_integrity_gate();
+        // The gate is bypassed, so an empty hash now reaches the real load and
+        // fails on the missing file — NOT with the integrity message.
+        match host.execute(Request::DllLoad {
+            path: "no_such_file.dll".into(),
+            sha256: String::new(),
+        }) {
+            Response::Error { message } => {
+                assert!(!message.contains("integrity hash"), "gate should be bypassed: {message}")
+            }
+            _ => panic!("missing file should still error"),
+        }
     }
 }

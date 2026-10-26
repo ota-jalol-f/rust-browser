@@ -60,10 +60,13 @@ fn granted_page_uses_usb_and_loads_real_dll() {
 
     // Escape the path into a JS string literal (backslashes on Windows).
     let js_path = dll_path.to_string_lossy().replace('\\', "\\\\");
+    // The DLL host now requires a real integrity hash for page-driven loads, so
+    // pass the plugin's actual SHA-256 — proving the gate passes end to end.
+    let dll_hash = sentinel_dll_host::sha256_hex(&std::fs::read(&dll_path).expect("read test plugin"));
     let probe = format!(
         "(function(){{\
            const u = window.native.usb.list();\
-           const d = window.native.dll.load('{js_path}', '');\
+           const d = window.native.dll.load('{js_path}', '{dll_hash}');\
            return u.status + '/' + u.response.result + '|' + d.status + '/' + d.response.result;\
          }})()"
     );

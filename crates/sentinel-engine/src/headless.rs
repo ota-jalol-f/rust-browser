@@ -115,3 +115,87 @@ pub fn render_html_to_bgra(html: &str, width: u32, height: u32) -> Result<Vec<u8
         .ok_or_else(|| Error::Engine("could not lock surface pixels".into()))?;
     Ok(pixels.to_vec())
 }
+
+/// Load `url` headlessly, let the page settle (network + scripts + ES-module
+/// evaluation + framework mount) for `budget`, then return a JSON diagnostic
+/// string describing whether an SPA actually booted. Used as a one-off
+/// engine-compatibility probe — NOT a normal code path.
+///
+/// The returned JSON has shape:
+/// `{"nonblank":bool,"elapsed_ms":n,"diag":{...page diagnostics...}}`.
+///
+/// # Errors
+/// [`Error::Engine`] if the engine fails to initialize or the URL is rejected.
+///
+/// # Process model
+/// See [`init_renderer`] — the `Renderer` is per-process.
+pub fn probe_url(url: &str, width: u32, height: u32, budget: std::time::Duration) -> Result<String> {
+    use std::time::Instant;
+
+    let renderer = init_renderer()?;
+    let view = create_cpu_view(&renderer, width, height)?;
+    view.load_url(url).map_err(|e| Error::Engine(format!("load_url: {e:?}")))?;
+
+    // Pump with wall-clock sleeps so async network and deferred ES modules can
+    // make progress. Keep pumping for the whole budget even after `is_loading`
+    // goes false, so module evaluation and the framework mount have time to run.
+    let start = Instant::now();
+    loop {
+        renderer.update();
+        renderer.render();
+        if start.elapsed() >= budget {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(16));
+    }
+
+    let diag_js = r#"(function(){
+      try {
+        var app = document.getElementById('app');
+        var loader = document.getElementById('app-loader');
+        function esc(s){ return (s==null?'':s.toString()).slice(0,300); }
+        return JSON.stringify({
+          href: location.href,
+          title: document.title,
+          readyState: document.readyState,
+          scripts: document.scripts.length,
+          htmlLen: document.documentElement ? document.documentElement.outerHTML.length : -1,
+          loaderPresent: !!loader,
+          appChildren: app ? app.children.length : -1,
+          appHtmlLen: app ? app.innerHTML.length : -1,
+          vueMounted: !!(app && app.__vue_app__),
+          bodyTextLen: document.body ? (document.body.innerText||'').length : -1,
+          bodyText: esc(document.body ? document.body.innerText : ''),
+          ua: esc(navigator.userAgent),
+          typePromise: typeof Promise,
+          typeFetch: typeof fetch,
+          typeWeakRef: typeof WeakRef,
+          typeBigInt: typeof BigInt,
+          typeProxy: typeof Proxy
+        });
+      } catch(e){ return JSON.stringify({diagError: ''+e}); }
+    })()"#;
+    let diag = match view.evaluate_script(diag_js) {
+        Ok(Ok(s)) => s,
+        Ok(Err(js_exc)) => format!("{{\"jsException\":\"{}\"}}", js_exc.replace('"', "'")),
+        Err(e) => format!("{{\"evalError\":\"{e:?}\"}}"),
+    };
+
+    // Non-blank check: does any pixel differ from the top-left pixel? A solid
+    // surface (all pixels equal) means nothing meaningful was painted.
+    let nonblank = match view.surface() {
+        Some(mut s) => match s.lock_pixels() {
+            Some(px) if px.len() >= 4 => {
+                let first = [px[0], px[1], px[2]];
+                px.chunks_exact(4).any(|p| [p[0], p[1], p[2]] != first)
+            }
+            _ => false,
+        },
+        None => false,
+    };
+
+    Ok(format!(
+        "{{\"nonblank\":{nonblank},\"elapsed_ms\":{},\"diag\":{diag}}}",
+        start.elapsed().as_millis()
+    ))
+}

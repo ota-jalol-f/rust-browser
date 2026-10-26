@@ -6,3 +6,8 @@ ultralight.log
 sentinel-startup.log
 sentinel-bridge-debug.log
 sentinel-panic.log
+
+# Ultralight runtime session cache (cookies etc.), created when running the
+# engine/tests with the crate dir as the working directory.
+/crates/sentinel-engine/default/
+cookie.jar.db

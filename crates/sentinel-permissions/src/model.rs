@@ -84,6 +84,18 @@ impl Origin {
     pub fn as_str(&self) -> &str {
         &self.0
     }
+
+    /// An opaque, privilege-less origin — the safe fallback for a page whose URL
+    /// has no real web origin (`about:blank`, `data:`, `file:`).
+    ///
+    /// [`Origin::parse`] always yields `scheme://authority` (it requires `://`), so
+    /// this value can never be produced by parsing a URL. It therefore never
+    /// collides with a real origin and is never one of the pre-granted origins, so
+    /// every capability check against it resolves to the secure default
+    /// ([`PermissionState::Ask`]) — i.e. no access.
+    pub fn opaque() -> Self {
+        Origin(String::from("null"))
+    }
 }
 
 impl fmt::Display for Origin {
@@ -113,6 +125,18 @@ mod tests {
     fn origin_strips_path_query_fragment() {
         let o = Origin::parse("https://Example.com/some/path?q=1#frag").unwrap();
         assert_eq!(o.as_str(), "https://example.com");
+    }
+
+    #[test]
+    fn opaque_origin_is_unforgeable_and_distinct() {
+        let opaque = Origin::opaque();
+        // Never equal to any real origin, including the shell's trusted home.
+        assert_ne!(opaque, Origin::parse("https://example.com").unwrap());
+        assert_ne!(opaque, Origin::parse("sentinel://home").unwrap());
+        assert_ne!(opaque, Origin::parse("file://etc").unwrap());
+        // parse() can never produce the opaque value (it requires `scheme://`).
+        assert!(Origin::parse("null").is_err());
+        assert!(Origin::parse(opaque.as_str()).is_err());
     }
 
     #[test]

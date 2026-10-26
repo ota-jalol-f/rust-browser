@@ -81,6 +81,7 @@ pub fn run(config: &BrowserConfig, home_html: String) -> Result<()> {
         home_origin: Origin::parse(BUILTIN_ORIGIN).expect("valid"),
         chrome_installed: false,
         content_loading: true,
+        content_is_home: true,
         last_frame: Instant::now(),
     };
     event_loop.run_app(&mut app).map_err(|e| Error::Engine(format!("winit run: {e}")))
@@ -106,6 +107,10 @@ struct App {
     chrome_installed: bool,
     /// Previous-frame loading state of the content view (to detect load completion).
     content_loading: bool,
+    /// Whether the content view still shows the built-in startup dashboard — the
+    /// only page trusted with the home origin's pre-granted capabilities. Cleared
+    /// the moment the user navigates away via the address bar.
+    content_is_home: bool,
     /// Time of the last painted frame (for ~60 fps pacing).
     last_frame: Instant,
 }
@@ -285,10 +290,26 @@ impl App {
         let loading = self.content.as_ref().is_some_and(|c| c.is_loading());
         if self.content_loading && !loading {
             let url = self.content.as_ref().and_then(|c| c.current_url());
-            let origin = url
-                .as_deref()
-                .and_then(|u| Origin::parse(u).ok())
-                .unwrap_or_else(|| self.home_origin.clone());
+            // The home origin's pre-granted capabilities are reserved for the
+            // built-in startup dashboard ONLY. That requires BOTH that no navigation
+            // has occurred (`content_is_home`) AND that the view still has no real
+            // URL — the `load_html` dashboard reports none / about:blank. Any page
+            // with a real URL is classified by that URL regardless of how it was
+            // reached (address bar, link click, or a script `location` change): its
+            // own parsed origin, or an opaque privilege-less origin for
+            // file:/data:/unparseable URLs. So home privileges can never leak to a
+            // navigated page, even one the dashboard navigated itself to.
+            let is_home = self.content_is_home
+                && url
+                    .as_deref()
+                    .is_none_or(|u| u.is_empty() || u.eq_ignore_ascii_case("about:blank"));
+            let origin = if is_home {
+                self.home_origin.clone()
+            } else {
+                url.as_deref()
+                    .and_then(|u| Origin::parse(u).ok())
+                    .unwrap_or_else(Origin::opaque)
+            };
             if let (Some(content), Some(router), Some(executor)) =
                 (&self.content, &self.router, &self.executor)
             {
@@ -314,19 +335,30 @@ impl App {
         if commands.is_empty() {
             return;
         }
-        let Some(content) = &self.content else {
-            return;
-        };
-        for cmd in commands {
-            if let Some(url) = cmd.strip_prefix("nav ") {
-                let _ = content.load_url(&normalize_url(url));
-            } else if cmd == "back" {
-                content.go_back();
-            } else if cmd == "forward" {
-                content.go_forward();
-            } else if cmd == "reload" {
-                content.reload();
+        let mut navigated = false;
+        {
+            let Some(content) = &self.content else {
+                return;
+            };
+            for cmd in commands {
+                if let Some(url) = cmd.strip_prefix("nav ") {
+                    let _ = content.load_url(&normalize_url(url));
+                    navigated = true;
+                } else if cmd == "back" {
+                    content.go_back();
+                    navigated = true;
+                } else if cmd == "forward" {
+                    content.go_forward();
+                    navigated = true;
+                } else if cmd == "reload" {
+                    content.reload();
+                }
             }
+        }
+        // Navigating away via the address bar drops the startup dashboard's home
+        // privileges; the next load completes under its real (or opaque) origin.
+        if navigated {
+            self.content_is_home = false;
         }
     }
 
