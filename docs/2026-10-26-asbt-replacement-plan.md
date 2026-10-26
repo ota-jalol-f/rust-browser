@@ -43,9 +43,26 @@ ko'tara olmasligini bilish — eng yomon natija. Shuning uchun bu birinchi.
 > `#/sign-in`ga o'tdi, **login ekrani to'liq render bo'ldi**, `Proxy/Promise/fetch/WeakRef/BigInt`
 > bor. Ya'ni ES modullar + Vue 3 + Router + Pinia + i18n ISHLAYDI. Jonli `pasport-viza.uz` bo'sh
 > chiqdi — Ultralight headless tarmog'i yetib bormadi (TLS/tarmoq), engine aybi emas.
-> **Hali tekshirilmagan**: chuqur/og'ir view'lar, `faceworksv2` WASM + kamera (getUserMedia),
-> va plugin host-object chaqiruvlari. (getUserMedia Ultralight'da ehtimol yo'q — kamera oqimlari
-> web o'rniga native plugin orqali bo'lishi kerak.)
+> **NATIJA 2 (2026-10-26): engine capability probe** (`tests/engine_capabilities.rs`,
+> `headless::probe_capabilities`) — Ultralight'ning bu buildida quyidagilar **YO'Q**:
+> `WebAssembly` (undefined), `getUserMedia`/`mediaDevices`/`RTCPeerConnection`/`MediaStream`,
+> WebGL va WebGL2, OffscreenCanvas, SharedArrayBuffer. Web Workers bor. Runtime toggle topilmadi
+> (bu Ultralight'ning ma'lum cheklovi — JIT/WASM'siz JSC, WebGL backend'siz).
+>
+> **Dist inventarizatsiyasi:** 3 `.wasm` fayl — `ort-wasm` (ONNX Runtime Web, faceworksv2 yuz/
+> liveness), `vips` (wasm-vips, rasm qayta ishlash). `getUserMedia` 2 faylda (kamera). WebRTC yo'q,
+> MediaPipe/TF yo'q.
+>
+> **Xulosa:** core Vue ilova ishlaydi; lekin **kamera + yuz AI + og'ir rasm qayta ishlash**
+> Ultralight'da in-page ishlamaydi va **native plagin** orqali berilishi shart (allaqachon
+> rejalashtirilgan domen). Yaxshi yangilik: faceworksv2'ning ONNX modellari native **`ort`
+> crate** (ONNX Runtime native) bilan Rust'da ishlatiladi — xuddi shu modellar, WASM'siz; vips →
+> native libvips / Rust image crate'lari; kamera → native capture plagin. **Narx:** pv-next'ning
+> kamera/yuz/foto view'lari getUserMedia/WASM o'rniga plagin bridge'ni chaqirishi uchun
+> o'zgartirilishi kerak (localizatsiyalangan, plagin chegarasiga mos).
+>
+> **Hali tekshirilmagan**: boshqa chuqur/og'ir view'lar; vips aynan qayerda ishlatiladi (faqat foto
+> oqimidami yoki kengroqmi) — ta'sir hajmini yakuniy aniqlash uchun.
 
 ## 2. Arxitektura (Rust-only)
 

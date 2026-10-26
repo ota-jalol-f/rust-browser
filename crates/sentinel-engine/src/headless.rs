@@ -199,3 +199,92 @@ pub fn probe_url(url: &str, width: u32, height: u32, budget: std::time::Duration
         start.elapsed().as_millis()
     ))
 }
+
+/// Probe the engine's JS capabilities relevant to the pv-next hardware flows:
+/// WebAssembly (compile + run), media capture (`getUserMedia`, `mediaDevices`,
+/// `RTCPeerConnection`), and WebGL. Loads a tiny self-contained page (no network)
+/// and returns `window.__caps` as a JSON string after letting async calls settle.
+///
+/// # Errors
+/// [`Error::Engine`] if the engine fails to initialize or the eval fails.
+///
+/// # Process model
+/// See [`init_renderer`] — the `Renderer` is per-process.
+pub fn probe_capabilities(budget: std::time::Duration) -> Result<String> {
+    use std::time::Instant;
+
+    let renderer = init_renderer()?;
+    let view = create_cpu_view(&renderer, 320, 240)?;
+
+    // Self-contained page: feature-detect synchronously, run a tiny WASM module
+    // synchronously (Module/Instance are sync), and kick off the async media calls
+    // whose outcome we read after pumping.
+    let html = r##"<!doctype html><html><head><meta charset="utf-8"></head><body>
+<script>
+var caps = window.__caps = { phase: 'init' };
+try {
+  caps.WebAssembly = typeof WebAssembly;
+  caps.wasmValidate = (typeof WebAssembly !== 'undefined' && WebAssembly.validate)
+    ? WebAssembly.validate(new Uint8Array([0,97,115,109,1,0,0,0])) : 'n/a';
+  try {
+    // module exporting add(i32,i32)->i32
+    var bytes = new Uint8Array([0,97,115,109,1,0,0,0, 1,7,1,96,2,127,127,1,127,
+      3,2,1,0, 7,7,1,3,97,100,100,0,0, 10,9,1,7,0,32,0,32,1,106,11]);
+    var inst = new WebAssembly.Instance(new WebAssembly.Module(bytes));
+    caps.wasmRun = 'add(2,3)=' + inst.exports.add(2,3);
+  } catch (e) { caps.wasmRun = 'err:' + (e && e.name) + ':' + (e && e.message); }
+
+  caps.hasMediaDevices = !!(navigator && navigator.mediaDevices);
+  caps.hasGetUserMedia = !!(navigator && navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+  caps.hasLegacyGUM = !!(navigator && (navigator.getUserMedia || navigator.webkitGetUserMedia));
+  caps.hasEnumerateDevices = !!(navigator && navigator.mediaDevices && navigator.mediaDevices.enumerateDevices);
+  caps.RTCPeerConnection = typeof (window.RTCPeerConnection || window.webkitRTCPeerConnection);
+  caps.MediaStream = typeof window.MediaStream;
+  caps.MediaRecorder = typeof window.MediaRecorder;
+  caps.webgl = (function(){ try { var c=document.createElement('canvas');
+    return !!(c.getContext('webgl') || c.getContext('experimental-webgl')); } catch(e){ return 'err'; } })();
+  caps.webgl2 = (function(){ try { return !!document.createElement('canvas').getContext('webgl2'); } catch(e){ return 'err'; } })();
+  caps.OffscreenCanvas = typeof OffscreenCanvas;
+  caps.Worker = typeof Worker;
+  caps.SharedArrayBuffer = typeof SharedArrayBuffer;
+
+  caps.gum = 'pending';
+  if (caps.hasGetUserMedia) {
+    try {
+      navigator.mediaDevices.getUserMedia({ video: true })
+        .then(function (s) { caps.gum = 'ok:tracks=' + (s.getVideoTracks ? s.getVideoTracks().length : '?'); })
+        .catch(function (e) { caps.gum = 'reject:' + (e && e.name) + ':' + (e && e.message); });
+    } catch (e) { caps.gum = 'throw:' + (e && e.name) + ':' + (e && e.message); }
+  } else { caps.gum = 'absent'; }
+
+  caps.enumDev = 'pending';
+  if (caps.hasEnumerateDevices) {
+    try {
+      navigator.mediaDevices.enumerateDevices()
+        .then(function (d) { caps.enumDev = 'ok:' + d.length; })
+        .catch(function (e) { caps.enumDev = 'reject:' + (e && e.name); });
+    } catch (e) { caps.enumDev = 'throw:' + e; }
+  } else { caps.enumDev = 'absent'; }
+
+  caps.phase = 'done';
+} catch (e) { caps.fatal = '' + e; }
+</script></body></html>"##;
+
+    view.load_html(html).map_err(|e| Error::Engine(format!("load_html: {e:?}")))?;
+
+    let start = Instant::now();
+    loop {
+        renderer.update();
+        renderer.render();
+        if start.elapsed() >= budget {
+            break;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(16));
+    }
+
+    match view.evaluate_script("JSON.stringify(window.__caps || {missing:true})") {
+        Ok(Ok(s)) => Ok(s),
+        Ok(Err(js)) => Ok(format!("{{\"jsException\":\"{}\"}}", js.replace('"', "'"))),
+        Err(e) => Err(Error::Engine(format!("caps eval failed: {e:?}"))),
+    }
+}
