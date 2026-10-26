@@ -124,8 +124,7 @@ impl ApplicationHandler for App {
         event_loop.set_control_flow(winit::event_loop::ControlFlow::Wait);
         let attrs = Window::default_attributes()
             .with_title("Sentinel")
-            .with_inner_size(LogicalSize::new(self.width, self.height))
-            .with_resizable(false);
+            .with_inner_size(LogicalSize::new(self.width, self.height));
         let window = match event_loop.create_window(attrs) {
             Ok(w) => Rc::new(w),
             Err(e) => return fail(event_loop, format!("create window: {e}")),
@@ -190,6 +189,23 @@ impl ApplicationHandler for App {
         match event {
             WindowEvent::CloseRequested => event_loop.exit(),
             WindowEvent::RedrawRequested => self.paint(),
+            WindowEvent::Resized(size) => {
+                // Keep both Ultralight views in step with the window; the softbuffer
+                // surface is already resized each frame in `paint`. The chrome keeps
+                // its fixed bar height; the content view takes the remaining area.
+                let win_w = size.width.max(1);
+                let win_h = size.height.max(1);
+                let content_h = win_h.saturating_sub(self.bar_h).max(1);
+                if let Some(c) = self.chrome.as_mut() {
+                    c.resize(win_w, self.bar_h);
+                }
+                if let Some(c) = self.content.as_mut() {
+                    c.resize(win_w, content_h);
+                }
+                if let Some(window) = &self.window {
+                    window.request_redraw();
+                }
+            }
             WindowEvent::MouseWheel { delta, .. } => {
                 let (dx, dy) = match delta {
                     MouseScrollDelta::LineDelta(x, y) => {

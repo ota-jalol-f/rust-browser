@@ -19,8 +19,8 @@ use ul_next::{
     },
     javascript::{JSObject, JSPropertyAttributes, JSValue},
     key_code::VirtualKeyCode,
-    renderer::Renderer,
-    view::View,
+    renderer::{Renderer, Session},
+    view::{View, ViewConfig},
     Library,
 };
 
@@ -84,24 +84,39 @@ impl SpecialKey {
 /// `Renderer` may exist per process, so create exactly one `Engine`.
 pub struct Engine {
     renderer: Renderer,
+    /// Non-persistent session shared by all views: cookies, localStorage and cache
+    /// stay in memory and are never written to disk (privacy-first — the browser
+    /// leaves no browsing data behind between runs).
+    session: Session,
     lib: Arc<Library>,
 }
 
 impl Engine {
-    /// Initialize Ultralight and the CPU renderer.
+    /// Initialize Ultralight and the CPU renderer with an ephemeral session.
     ///
     /// # Errors
-    /// [`Error::Engine`] on initialization failure.
+    /// [`Error::Engine`] on initialization or session-creation failure.
     pub fn new() -> Result<Self> {
-        Ok(Self { renderer: crate::headless::init_renderer()?, lib: Library::linked() })
+        let renderer = crate::headless::init_renderer()?;
+        let session = renderer
+            .create_session(false, "sentinel-ephemeral")
+            .map_err(|e| Error::Engine(format!("create ephemeral session: {e:?}")))?;
+        Ok(Self { renderer, session, lib: Library::linked() })
     }
 
-    /// Create a `width`x`height` CPU page.
+    /// Create a `width`x`height` CPU page bound to the engine's ephemeral session.
     ///
     /// # Errors
-    /// [`Error::Engine`] if the view cannot be created.
+    /// [`Error::Engine`] if the view config or the view itself cannot be created.
     pub fn create_page(&self, width: u32, height: u32) -> Result<PageView> {
-        let view = crate::headless::create_cpu_view(&self.renderer, width, height)?;
+        let view_config = ViewConfig::start()
+            .is_accelerated(false)
+            .build(self.lib.clone())
+            .ok_or_else(|| Error::Engine("view config build returned None".into()))?;
+        let view = self
+            .renderer
+            .create_view(width, height, &view_config, Some(&self.session))
+            .ok_or_else(|| Error::Engine("create_view returned None".into()))?;
         Ok(PageView { view, lib: self.lib.clone(), width, height })
     }
 
@@ -178,6 +193,17 @@ impl PageView {
     /// Size in pixels.
     pub fn size(&self) -> (u32, u32) {
         (self.width, self.height)
+    }
+
+    /// Resize the view's render surface to `width`x`height` pixels (both clamped to
+    /// at least 1). Keeps the view's backing surface in step with the window so the
+    /// page re-lays-out and fills the new area.
+    pub fn resize(&mut self, width: u32, height: u32) {
+        let width = width.max(1);
+        let height = height.max(1);
+        self.view.resize(width, height);
+        self.width = width;
+        self.height = height;
     }
 
     /// Copy the current frame as premultiplied-BGRA bytes + row stride:

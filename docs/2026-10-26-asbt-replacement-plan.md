@@ -133,11 +133,17 @@ Faqat **SigPlusNET (imzo)** toza managed — eng katta xavf shu yerda.
    Testlar: permissions 13, dll-host 9, js_bridge e2e gate (haqiqiy hash) 1 — barchasi yashil.
 
 ### Faza 1 — Shell'ni "ishchi holat"ga keltirish
-- Tablar / yangi-oyna ishlovi (hozir 2 ta qat'iy view).
-- Oynani resizable qilish (`with_resizable(false)` olib tashlanadi).
-- `sentinel-storage` + `sentinel-core::History` ni GUI'ga ulash (navigatsiyada yozish, autocomplete).
-- Cookie boshqaruvi.
-- Boshqariladigan allowlist config (portal originlariga plugin ruxsatlari).
+- **Oynani resizable qilish** ✅ BAJARILDI: `with_resizable(false)` olib tashlandi; `Resized`da
+  chrome/content view'lar o'lchanadi (`PageView::resize` + ul-next `View::resize`). Vizual tasdiq
+  jonli ishni talab qiladi.
+- **Efemer sessiya (storage/history qarori)** ✅ BAJARILDI: foydalanuvchi qarori — **tarix
+  saqlanmaydi**. `Engine` endi non-persistent `Session` (`create_session(false, …)`) ishlatadi →
+  cookie/localStorage/cache/tarix **diskka yozilmaydi** (fuqaro ma'lumotli kiosk maxfiyligi).
+  `sentinel-storage`/`sentinel-crypto` shell'ga ulanmaydi.
+- **Tablar / yangi-oyna ishlovi** ⏭ KEYINGI (qaror: **chrome-HTML tab strip**): tab paneli chrome
+  HTML'ida, har tab = alohida content view, manzil qatori faol tabga bog'lanadi. Katta refaktor.
+- **Boshqariladigan allowlist config**: portal originlariga plugin capability'larini oldindan
+  beruvchi config fayli.
 
 ### Faza 2 — Plugin yadro infratuzilmasi (Rust, pluginlardan oldin)
 1. **Async Promise bridge**: pv-next `await signpad.Capture()` qiladi, lekin hozirgi
