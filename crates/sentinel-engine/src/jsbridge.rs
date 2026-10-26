@@ -455,3 +455,123 @@ pub fn prove_async_stream_roundtrip() -> Result<String> {
         Err(js_exception) => Err(Error::Engine(format!("stream result read threw: {js_exception}"))),
     }
 }
+
+// ---------------------------------------------------------------------------
+// Modal UI plugin overlay bridge: the overlay view's own private channel. The
+// overlay gets `window.ui.send(msg)` (overlay -> host) and the host pushes
+// updates with [`push_ui_update`] (host -> overlay, via `window.ui.onUpdate`).
+// The overlay is deliberately given NO `window.native` / `window.share`; it can
+// only talk to the UI op that owns it.
+// ---------------------------------------------------------------------------
+
+/// Messages the overlay JS sent to its owning UI op, drained by the host.
+pub type UiMessages = Arc<Mutex<Vec<String>>>;
+
+/// Install the overlay UI bridge into `view`: `window.ui.send(msg)` pushes `msg`
+/// onto `messages`. The overlay HTML sets `window.ui.onUpdate` to receive host
+/// pushes (see [`push_ui_update`]); the shim merges rather than clobbering it.
+///
+/// # Errors
+/// [`Error::Engine`] if the native entry point or the shim fails.
+pub fn install_ui_bridge(view: &View, messages: UiMessages) -> Result<()> {
+    {
+        let ctx = view.lock_js_context();
+        let global = ctx.global_object();
+        let callback = JSObject::new_function_with_callback(&ctx, move |ctx, _this, args| {
+            let msg = args
+                .first()
+                .and_then(|v| v.as_string().ok())
+                .map(|s| s.to_string())
+                .unwrap_or_default();
+            messages.lock().unwrap_or_else(|p| p.into_inner()).push(msg);
+            Ok(JSValue::new_undefined(ctx))
+        });
+        global
+            .set_property("__sentinelUiMessage", &callback, JSPropertyAttributes::default())
+            .map_err(|e| Error::Engine(format!("set __sentinelUiMessage failed: {e:?}")))?;
+    }
+    // Merge, don't clobber: the overlay HTML may already have set onUpdate.
+    let shim = "(function(){ window.ui = window.ui || {}; \
+        window.ui.send = function(m){ window.__sentinelUiMessage(String(m)); }; })();";
+    match view
+        .evaluate_script(shim)
+        .map_err(|e| Error::Engine(format!("ui shim eval failed: {e:?}")))?
+    {
+        Ok(_) => Ok(()),
+        Err(js_exception) => Err(Error::Engine(format!("ui shim threw: {js_exception}"))),
+    }
+}
+
+/// Push a state update (a JSON string) into the overlay via `window.ui.onUpdate`.
+/// The overlay renders it with `textContent`, never as HTML.
+///
+/// # Errors
+/// [`Error::Engine`] if the eval fails or throws.
+pub fn push_ui_update(view: &View, update_json: &str) -> Result<()> {
+    let arg = serde_json::to_string(update_json).unwrap_or_else(|_| "\"\"".into());
+    let js =
+        format!("window.ui && typeof window.ui.onUpdate === 'function' && window.ui.onUpdate({arg})");
+    match view
+        .evaluate_script(&js)
+        .map_err(|e| Error::Engine(format!("ui update eval failed: {e:?}")))?
+    {
+        Ok(_) => Ok(()),
+        Err(js_exception) => Err(Error::Engine(format!("ui update threw: {js_exception}"))),
+    }
+}
+
+/// Headless proof of the overlay UI bridge and input capture: load a page with a
+/// positioned button, install the bridge, push a host→overlay update, then
+/// synthesize a click at the button's centre and confirm the overlay→host message
+/// arrived. Returns `{"messages":[...],"status":"..."}`. This is what compile +
+/// clippy cannot check: that a synthetic click actually reaches `onclick`.
+///
+/// # Errors
+/// [`Error::Engine`] on engine/eval failure.
+pub fn prove_ui_bridge_click() -> Result<String> {
+    let engine = crate::page::Engine::new()?;
+    let page = engine.create_page(200, 200)?;
+    let html = "<!doctype html><html><head><meta charset=\"utf-8\"></head><body>\
+        <button id=\"b\" style=\"position:absolute;left:10px;top:10px;width:120px;height:40px\" \
+          onclick=\"window.ui.send('ok')\">OK</button>\
+        <div id=\"s\"></div>\
+        <script>window.ui = window.ui || {}; \
+          window.ui.onUpdate = function(j){ try { document.getElementById('s').textContent = JSON.parse(j).status; } catch (e) {} };\
+        </script></body></html>";
+    page.load_html(html).map_err(|e| Error::Engine(format!("load_html: {e:?}")))?;
+    for _ in 0..600 {
+        engine.update();
+        if !page.is_loading() {
+            break;
+        }
+    }
+
+    let messages: UiMessages = Arc::new(Mutex::new(Vec::new()));
+    install_ui_bridge(page.view(), messages.clone())?;
+
+    // host -> overlay
+    push_ui_update(page.view(), "{\"status\":\"ready\"}")?;
+    for _ in 0..8 {
+        engine.update();
+        std::thread::sleep(std::time::Duration::from_millis(16));
+    }
+
+    // overlay -> host: synthesize a click at the button centre (70, 30).
+    page.mouse_move(70, 30);
+    page.mouse_button(70, 30, true);
+    page.mouse_button(70, 30, false);
+    for _ in 0..8 {
+        engine.update();
+        std::thread::sleep(std::time::Duration::from_millis(16));
+    }
+
+    let msgs = messages.lock().unwrap_or_else(|p| p.into_inner()).clone();
+    let status = match page.view().evaluate_script("document.getElementById('s').textContent") {
+        Ok(Ok(s)) => s,
+        Ok(Err(e)) => format!("<js:{e}>"),
+        Err(e) => format!("<err:{e:?}>"),
+    };
+    let msgs_json = serde_json::to_string(&msgs).unwrap_or_else(|_| "[]".into());
+    let status_json = serde_json::to_string(&status).unwrap_or_else(|_| "\"\"".into());
+    Ok(format!("{{\"messages\":{msgs_json},\"status\":{status_json}}}"))
+}

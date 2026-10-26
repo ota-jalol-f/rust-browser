@@ -52,10 +52,49 @@ pub trait PluginStream {
     fn poll(&mut self) -> StreamStep;
 }
 
+/// One step of a modal UI plugin operation, produced by polling it while its
+/// overlay window is open.
+pub enum UiStep {
+    /// Push a state update (opaque JSON) to the overlay via `window.ui.onUpdate`
+    /// — e.g. idbox status, a live-view frame, a countdown. The overlay renders it
+    /// with `textContent` (never as HTML), so request/page data cannot inject
+    /// markup.
+    Update(String),
+    /// The operation finished; close the overlay and resolve the call with this.
+    Done(PluginResult),
+    /// Nothing this tick; poll again next frame.
+    Pending,
+}
+
+/// A running modal UI plugin operation. The host shows [`PluginUi::html`] in a
+/// full-window overlay, routes the overlay's messages to [`PluginUi::on_message`],
+/// pushes [`PluginUi::poll`] updates into the overlay, and closes it on
+/// [`UiStep::Done`] or when the host force-closes it ([`PluginUi::on_close`] — Esc,
+/// or the originating tab navigating away).
+pub trait PluginUi {
+    /// The overlay's HTML document. MUST NOT embed request/page data (that would
+    /// let a page inject markup that auto-confirms the dialog); deliver data via
+    /// [`UiStep::Update`] and render it with `textContent`.
+    fn html(&self) -> String;
+
+    /// Handle a message from the overlay JS (`window.ui.send(msg)`): update state
+    /// only. The outcome is reported by the next [`PluginUi::poll`].
+    fn on_message(&mut self, message: &str);
+
+    /// Advance the operation by one step (polled once per frame).
+    fn poll(&mut self) -> UiStep;
+
+    /// The result when the host force-closes the overlay (Esc, or the originating
+    /// tab closed / navigated). Defaults to a cancel.
+    fn on_close(&mut self) -> PluginResult {
+        PluginResult::cancel()
+    }
+}
+
 /// An in-process plugin. A one-shot call is [`Plugin::execute`]; a streaming call
-/// is [`Plugin::execute_stream`]. Both return the [`PluginResult`] envelope. Not
-/// required to be `Send`: plugins run on the single Ultralight/UI thread, like the
-/// reference's UI plugins.
+/// is [`Plugin::execute_stream`]; a modal UI call is [`Plugin::execute_ui`]. All
+/// return the [`PluginResult`] envelope. Not required to be `Send`: plugins run on
+/// the single Ultralight/UI thread, like the reference's UI plugins.
 pub trait Plugin {
     /// This plugin's identity and metadata.
     fn descriptor(&self) -> PluginDescriptor;
@@ -70,6 +109,12 @@ pub trait Plugin {
     /// result. A streaming plugin overrides this to return a [`PluginStream`] the
     /// host polls each frame.
     fn execute_stream(&mut self, _request: &str) -> Option<Box<dyn PluginStream>> {
+        None
+    }
+
+    /// Begin a modal UI call. The default returns `None` (not a UI plugin). A UI
+    /// plugin overrides this to return a [`PluginUi`] the host shows in an overlay.
+    fn execute_ui(&mut self, _request: &str) -> Option<Box<dyn PluginUi>> {
         None
     }
 }
@@ -144,6 +189,24 @@ impl PluginRegistry {
         match self.plugins.iter_mut().find(|p| p.descriptor().id == id) {
             Some(p) => match p.execute_stream(request) {
                 Some(stream) => Ok(stream),
+                None => Err(p.execute(request)),
+            },
+            None => Err(PluginResult::fail(format!("unknown plugin: {id}"))),
+        }
+    }
+
+    /// Begin a modal UI call (backs `share.RunPluginUi(id, request)`). Returns the
+    /// running [`PluginUi`] when the plugin has one; otherwise `Err` with a
+    /// [`PluginResult`] to resolve immediately (a non-UI plugin called via the UI
+    /// API falls back to its one-shot `execute`; an unknown id fails).
+    pub fn dispatch_ui(
+        &mut self,
+        id: &str,
+        request: &str,
+    ) -> Result<Box<dyn PluginUi>, PluginResult> {
+        match self.plugins.iter_mut().find(|p| p.descriptor().id == id) {
+            Some(p) => match p.execute_ui(request) {
+                Some(ui) => Ok(ui),
                 None => Err(p.execute(request)),
             },
             None => Err(PluginResult::fail(format!("unknown plugin: {id}"))),
@@ -312,6 +375,90 @@ mod tests {
                 assert!(r.error_message.contains("unknown plugin"));
             }
             Ok(_) => panic!("unknown plugin must not produce a stream"),
+        }
+    }
+
+    /// A demo modal UI op: pushes two tick updates (plugin -> overlay), then stays
+    /// Pending until a message arrives (overlay -> plugin), then completes.
+    struct ConfirmUi {
+        answered: Option<PluginResult>,
+        ticks: u32,
+    }
+
+    impl PluginUi for ConfirmUi {
+        fn html(&self) -> String {
+            // Static HTML only — no request/page data embedded.
+            "<html><body><button onclick=\"window.ui.send('ok')\">OK</button></body></html>"
+                .to_string()
+        }
+        fn on_message(&mut self, message: &str) {
+            self.answered = Some(match message {
+                "ok" => PluginResult::ok("confirmed"),
+                _ => PluginResult::cancel(),
+            });
+        }
+        fn poll(&mut self) -> UiStep {
+            if let Some(r) = self.answered.take() {
+                return UiStep::Done(r);
+            }
+            if self.ticks < 2 {
+                self.ticks += 1;
+                return UiStep::Update(format!("{{\"tick\":{}}}", self.ticks));
+            }
+            UiStep::Pending
+        }
+    }
+
+    struct ConfirmPlugin;
+
+    impl Plugin for ConfirmPlugin {
+        fn descriptor(&self) -> PluginDescriptor {
+            PluginDescriptor {
+                id: "Asbt.Confirm".into(),
+                name: "confirm".into(),
+                version: "1.0.0".into(),
+                kind: PluginKind::Ui,
+            }
+        }
+        fn execute(&mut self, _request: &str) -> PluginResult {
+            PluginResult::fail("Asbt.Confirm is a UI plugin; use RunPluginUi")
+        }
+        fn execute_ui(&mut self, _request: &str) -> Option<Box<dyn PluginUi>> {
+            Some(Box::new(ConfirmUi { answered: None, ticks: 0 }))
+        }
+    }
+
+    #[test]
+    fn ui_plugin_updates_then_resolves_on_message() {
+        let mut reg = PluginRegistry::new();
+        reg.register(Box::new(ConfirmPlugin)).unwrap();
+        let mut ui = reg.dispatch_ui("Asbt.Confirm", "{}").expect("should be a UI op");
+        assert!(ui.html().contains("button"));
+        // plugin -> overlay updates
+        match ui.poll() {
+            UiStep::Update(j) => assert!(j.contains("\"tick\":1")),
+            _ => panic!("expected first update"),
+        }
+        match ui.poll() {
+            UiStep::Update(j) => assert!(j.contains("\"tick\":2")),
+            _ => panic!("expected second update"),
+        }
+        assert!(matches!(ui.poll(), UiStep::Pending));
+        // overlay -> plugin message, then completion on the next poll
+        ui.on_message("ok");
+        match ui.poll() {
+            UiStep::Done(r) => assert_eq!(r, PluginResult::ok("confirmed")),
+            _ => panic!("expected completion"),
+        }
+    }
+
+    #[test]
+    fn non_ui_plugin_via_ui_api_falls_back() {
+        let mut reg = PluginRegistry::new();
+        reg.register(echo("Asbt.Echo")).unwrap();
+        match reg.dispatch_ui("Asbt.Echo", "hi") {
+            Err(r) => assert_eq!(r, PluginResult::ok("1:hi")),
+            Ok(_) => panic!("echo is not a UI plugin"),
         }
     }
 }
