@@ -154,8 +154,11 @@ Faqat **SigPlusNET (imzo)** toza managed — eng katta xavf shu yerda.
    `eval("__sentinelResolve(id, json)")` chaqiradi. Busy/re-entrancy guard shu yerda.
 2. **Plugin UI host**: modal device oynalari (imzo/ID/foto) WPF edi — endi **Ultralight HTML
    overlay** (uchinchi overlay view yoki ikkinchi winit oyna) + input capture.
-3. **Rust plugin trait + registry**: `id/name/version/dispatch`, `{data,success,error_message}`
-   konverti, `share.GetPlugins()` uchun metama'lumot.
+3. **Rust plugin trait + registry** ✅ BAJARILDI: `sentinel-plugin` krati — `Plugin` trait
+   (`descriptor` + `execute`), `PluginDescriptor`/`PluginKind`, `PluginResult`
+   (`{data,success,error_message}`, reference bilan bayt-mos), va `PluginRegistry`
+   (`descriptors()` → `share.GetPlugins()`, `dispatch(id, req)` → `share.RunPlugin`). Toza, GUI'siz,
+   9 test + clippy toza. (Async bridge/UI host shuning ustiga quriladi.)
 4. **`sentinel-ipc` named-pipe transport**: x86 vendor SDK'lar uchun kichik Rust helper (JSON-lines,
    hello-handshake, parent-PID bog'lash — referens idbox helperidek, lekin .NET emas).
 
