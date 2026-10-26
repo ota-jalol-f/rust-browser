@@ -60,6 +60,10 @@ struct Tab {
     /// resolved only on this tab's own view, so a result can never cross to
     /// another tab or document.
     plugin_pending: PendingCalls,
+    /// Document load counter, bumped on each completed load. A stream captures it
+    /// at start; a later mismatch means the tab navigated → the stale stream is
+    /// dropped before it can deliver to a different document.
+    generation: u64,
 }
 
 /// A running streaming plugin call: polled once per frame; its chunks and final
@@ -69,6 +73,12 @@ struct ActiveStream {
     tab: usize,
     /// The JS call id to emit/resolve against.
     call_id: f64,
+    /// Origin that started the stream; delivery is dropped if the tab's current
+    /// document origin no longer matches (cross-origin navigation guard).
+    origin: Origin,
+    /// Tab generation at start; a bump (new document loaded) means the tab
+    /// navigated — including same-origin reloads — so the stream is dropped.
+    generation: u64,
     /// The running operation.
     stream: Box<dyn PluginStream>,
 }
@@ -270,6 +280,7 @@ impl ApplicationHandler for App {
             is_home: true,
             loading: true,
             plugin_pending: Arc::new(Mutex::new(Vec::new())),
+            generation: 0,
         }];
         self.active = 0;
         self.router = Some(router);
@@ -384,6 +395,25 @@ impl ApplicationHandler for App {
 }
 
 impl App {
+    /// The current document origin of tab `i`: the home origin only for the
+    /// pristine built-in dashboard (still `is_home` and no real URL), otherwise the
+    /// view's parsed origin, or an opaque privilege-less origin for
+    /// file:/data:/about:blank/unparseable URLs. Shared by bridge install and the
+    /// streaming guard so both classify a document identically.
+    fn tab_current_origin(&self, i: usize) -> Origin {
+        let Some(t) = self.tabs.get(i) else {
+            return Origin::opaque();
+        };
+        let url = t.view.current_url();
+        let is_home = t.is_home
+            && url.as_deref().is_none_or(|u| u.is_empty() || u.eq_ignore_ascii_case("about:blank"));
+        if is_home {
+            self.home_origin.clone()
+        } else {
+            url.as_deref().and_then(|u| Origin::parse(u).ok()).unwrap_or_else(Origin::opaque)
+        }
+    }
+
     /// Install the JS bridges from the main loop once their pages have loaded —
     /// safe here (outside `Engine::update`), unlike a DOM-ready callback. Re-installs
     /// window.native on the content view after each navigation (the JS context resets).
@@ -403,27 +433,12 @@ impl App {
         // new page's origin, and sync the address bar to the actual URL.
         let loading = self.tabs.get(self.active).is_some_and(|t| t.view.is_loading());
         let was_loading = self.tabs.get(self.active).is_some_and(|t| t.loading);
-        if was_loading && !loading {
-            let url = self.tabs.get(self.active).and_then(|t| t.view.current_url());
-            // The home origin's pre-granted capabilities are reserved for the
-            // built-in startup dashboard ONLY: the tab must still be `is_home`
-            // (never navigated) AND the view must have no real URL (the load_html
-            // dashboard reports none / about:blank). Any page with a real URL is
-            // classified by that URL regardless of how it was reached (address bar,
-            // link click, or a script `location` change): its own parsed origin, or
-            // an opaque privilege-less origin for file:/data:/unparseable URLs. So
-            // home privileges can never leak to a navigated page.
-            let is_home = self.tabs.get(self.active).is_some_and(|t| t.is_home)
-                && url
-                    .as_deref()
-                    .is_none_or(|u| u.is_empty() || u.eq_ignore_ascii_case("about:blank"));
-            let origin = if is_home {
-                self.home_origin.clone()
-            } else {
-                url.as_deref()
-                    .and_then(|u| Origin::parse(u).ok())
-                    .unwrap_or_else(Origin::opaque)
-            };
+        let completed = was_loading && !loading;
+        if completed {
+            // Classify the loaded document's origin (home only for the pristine
+            // dashboard; otherwise its parsed origin, or an opaque privilege-less
+            // origin for file:/data:/about:blank/unparseable).
+            let origin = self.tab_current_origin(self.active);
             if let (Some(tab), Some(router), Some(executor)) =
                 (self.tabs.get(self.active), &self.router, &self.executor)
             {
@@ -436,6 +451,11 @@ impl App {
             self.needs_tab_sync = true;
         }
         if let Some(tab) = self.tabs.get_mut(self.active) {
+            // A completed load is a NEW document: bump the generation so any stream
+            // started under the previous document is dropped on its next poll.
+            if completed {
+                tab.generation = tab.generation.wrapping_add(1);
+            }
             tab.loading = loading;
         }
     }
@@ -524,6 +544,7 @@ impl App {
             is_home: true,
             loading: true,
             plugin_pending: Arc::new(Mutex::new(Vec::new())),
+            generation: 0,
         });
         self.active = self.tabs.len() - 1;
     }
@@ -606,9 +627,12 @@ impl App {
                 if let Some((id, req)) = parse_stream_run(&c.request) {
                     match self.registry.dispatch_stream(&id, &req) {
                         Ok(stream) => {
+                            let generation = self.tabs.get(i).map(|t| t.generation).unwrap_or(0);
                             self.active_streams.push(ActiveStream {
                                 tab: i,
                                 call_id: c.call_id,
+                                origin: c.origin.clone(),
+                                generation,
                                 stream,
                             });
                         }
@@ -636,6 +660,21 @@ impl App {
     fn poll_streams(&mut self) {
         let mut i = 0;
         while i < self.active_streams.len() {
+            let tab_idx = self.active_streams[i].tab;
+            // Drop a stream whose tab closed, navigated (generation bumped), or
+            // whose current document origin no longer matches the one that started
+            // it — never emit/resolve into a different document.
+            let stale = match self.tabs.get(tab_idx) {
+                None => true,
+                Some(t) => {
+                    t.generation != self.active_streams[i].generation
+                        || self.tab_current_origin(tab_idx) != self.active_streams[i].origin
+                }
+            };
+            if stale {
+                self.active_streams.remove(i);
+                continue;
+            }
             let step = self.active_streams[i].stream.poll();
             let tab = self.active_streams[i].tab;
             let call_id = self.active_streams[i].call_id;
