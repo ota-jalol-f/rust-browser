@@ -21,11 +21,17 @@ pub enum Capability {
     /// Load and call a native DLL via `window.native.dll`. The most dangerous
     /// capability — granting it is equivalent to letting the origin run software.
     Dll,
+    /// Call a plugin via `window.share.RunPlugin` / `RunPluginStream` /
+    /// `GetPlugins`. Plugins drive hardware (readers, signature pads, cameras), so
+    /// this is granted only to trusted managed origins (the built-in dashboard and
+    /// the configured portal allowlist).
+    Plugin,
 }
 
 impl Capability {
     /// All capabilities, for iteration (e.g. listing an origin's grants).
-    pub const ALL: [Capability; 3] = [Capability::Usb, Capability::Serial, Capability::Dll];
+    pub const ALL: [Capability; 4] =
+        [Capability::Usb, Capability::Serial, Capability::Dll, Capability::Plugin];
 
     /// A short human-readable label for consent prompts.
     pub fn label(self) -> &'static str {
@@ -33,6 +39,7 @@ impl Capability {
             Capability::Usb => "USB devices",
             Capability::Serial => "serial ports",
             Capability::Dll => "native code (DLL)",
+            Capability::Plugin => "plugins",
         }
     }
 }
@@ -43,6 +50,7 @@ impl fmt::Display for Capability {
             Capability::Usb => "usb",
             Capability::Serial => "serial",
             Capability::Dll => "dll",
+            Capability::Plugin => "plugin",
         };
         f.write_str(s)
     }
@@ -167,6 +175,16 @@ mod tests {
 
     #[test]
     fn capability_all_covers_every_variant() {
-        assert_eq!(Capability::ALL.len(), 3);
+        // This match fails to compile if a variant is added without updating both
+        // ALL and the count below, keeping the gate's iteration exhaustive.
+        for cap in Capability::ALL {
+            match cap {
+                Capability::Usb
+                | Capability::Serial
+                | Capability::Dll
+                | Capability::Plugin => {}
+            }
+        }
+        assert_eq!(Capability::ALL.len(), 4);
     }
 }

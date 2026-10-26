@@ -19,6 +19,7 @@ ultralight = [
     "dep:sentinel-bridge",
     "dep:sentinel-hosts",
     "dep:sentinel-permissions",
+    "dep:sentinel-plugin",
     "dep:sentinel-device-host",
     "dep:sentinel-dll-host",
     "dep:sentinel-ipc",
@@ -34,6 +35,7 @@ sentinel-engine = { path = "../sentinel-engine" }
 sentinel-bridge = { path = "../sentinel-bridge", optional = true }
 sentinel-hosts = { path = "../sentinel-hosts", optional = true }
 sentinel-permissions = { path = "../sentinel-permissions", optional = true }
+sentinel-plugin = { path = "../sentinel-plugin", optional = true }
 sentinel-device-host = { path = "../sentinel-device-host", optional = true }
 sentinel-dll-host = { path = "../sentinel-dll-host", optional = true }
 sentinel-ipc = { path = "../sentinel-ipc", optional = true }

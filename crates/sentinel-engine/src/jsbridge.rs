@@ -224,6 +224,10 @@ pub struct PendingCall {
     pub call_id: f64,
     /// The request payload (JSON string, shim-defined: `{kind, id?, request?}`).
     pub request: String,
+    /// The origin of the document that made the call, captured at enqueue time.
+    /// The host gates each call by this origin and must not deliver a result
+    /// across a navigation (drop the call if the active origin no longer matches).
+    pub origin: Origin,
 }
 
 /// Queue of pending async calls, shared between the JS callback and the host loop.
@@ -239,16 +243,17 @@ fn format_call_id(id: f64) -> String {
     }
 }
 
-/// Install the async plugin bridge (`window.share`) into `view`. Page JS calls
-/// `window.share.RunPlugin(id, req)` / `GetPlugins()`, each returning a Promise;
-/// the native `__sentinelEnqueue(callId, request)` pushes the call onto `pending`
-/// and returns immediately. The host drains `pending`, does the work (possibly a
-/// modal window), and settles each Promise with [`resolve_call`].
+/// Install the async plugin bridge (`window.share`) into `view` for a document of
+/// `origin`. Page JS calls `window.share.RunPlugin(id, req)` / `GetPlugins()`,
+/// each returning a Promise; the native `__sentinelEnqueue(callId, request)`
+/// stamps the call with `origin`, pushes it onto `pending`, and returns
+/// immediately. The host drains `pending`, GATES each call by its origin, does the
+/// work (possibly a modal window), and settles each Promise with [`resolve_call`].
 ///
 /// # Errors
 /// [`Error::Engine`] if the native entry point cannot be installed or the JS shim
 /// fails to evaluate.
-pub fn install_async_bridge(view: &View, pending: PendingCalls) -> Result<()> {
+pub fn install_async_bridge(view: &View, origin: Origin, pending: PendingCalls) -> Result<()> {
     {
         let ctx = view.lock_js_context();
         let global = ctx.global_object();
@@ -260,10 +265,11 @@ pub fn install_async_bridge(view: &View, pending: PendingCalls) -> Result<()> {
                 .and_then(|v| v.as_string().ok())
                 .map(|s| s.to_string())
                 .unwrap_or_default();
-            pending
-                .lock()
-                .unwrap_or_else(|p| p.into_inner())
-                .push(PendingCall { call_id, request });
+            pending.lock().unwrap_or_else(|p| p.into_inner()).push(PendingCall {
+                call_id,
+                request,
+                origin: origin.clone(),
+            });
             Ok(JSValue::new_undefined(ctx))
         });
         global
@@ -369,7 +375,8 @@ pub fn prove_async_roundtrip(request: &str) -> Result<String> {
     crate::headless::pump_until_loaded(&renderer, &view);
 
     let pending: PendingCalls = Arc::new(Mutex::new(Vec::new()));
-    install_async_bridge(&view, pending.clone())?;
+    let origin = Origin::parse("https://test.example").expect("valid test origin");
+    install_async_bridge(&view, origin, pending.clone())?;
 
     // Kick off an async call; stash the resolved value on window.__asyncResult.
     // The Promise executor (and thus __sentinelEnqueue) runs synchronously here.
@@ -419,7 +426,8 @@ pub fn prove_async_stream_roundtrip() -> Result<String> {
     crate::headless::pump_until_loaded(&renderer, &view);
 
     let pending: PendingCalls = Arc::new(Mutex::new(Vec::new()));
-    install_async_bridge(&view, pending.clone())?;
+    let origin = Origin::parse("https://test.example").expect("valid test origin");
+    install_async_bridge(&view, origin, pending.clone())?;
 
     let kickoff = "window.__chunks = []; window.__asyncResult = 'PENDING'; \
          window.share.RunPluginStream('Reader', 'go', function(c){ window.__chunks.push(c); })\

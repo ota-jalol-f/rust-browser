@@ -13,3 +13,6 @@ pub mod dashboard;
 
 #[cfg(feature = "ultralight")]
 pub mod app;
+
+#[cfg(feature = "ultralight")]
+pub mod plugins;

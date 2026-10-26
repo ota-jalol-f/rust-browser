@@ -165,6 +165,15 @@ Faqat **SigPlusNET (imzo)** toza managed — eng katta xavf shu yerda.
    (`{data,success,error_message}`, reference bilan bayt-mos), va `PluginRegistry`
    (`descriptors()` → `share.GetPlugins()`, `dispatch(id, req)` → `share.RunPlugin`). Toza, GUI'siz,
    9 test + clippy toza. (Async bridge/UI host shuning ustiga quriladi.)
+3b. **Registry + async bridge shell'ga ulandi (`window.share`)** ✅ BAJARILDI: faol tab yuklanganda
+   `install_async_bridge` o'rnatiladi (document origini bilan bog'lab); har chaqiruv o'z origini
+   bo'yicha **`Capability::Plugin`** gate'idan o'tadi (yangi capability), so'ng `registry`ga
+   dispatch bo'lib `PluginResult`/descriptor JSON bilan resolve qilinadi. Namuna `Asbt.System`
+   plugini registratsiya qilingan. **Xavfsizlik**: (a) origin enqueue paytida `PendingCall`ga
+   bog'lanadi va gate shu origin bo'yicha; (b) **har tabga alohida navbat** — natija faqat o'zini
+   chaqirgan tab'da resolve bo'ladi (cross-tab leak yo'q); (c) navigatsiyada faol tab navbati
+   tozalanadi. (Qoldiq hardening: per-document nonce — keyin.) Avtomatik review 2 topilmasi shu
+   tarzda yopildi.
 4. **`sentinel-ipc` named-pipe transport**: x86 vendor SDK'lar uchun kichik Rust helper (JSON-lines,
    hello-handshake, parent-PID bog'lash — referens idbox helperidek, lekin .NET emas).
 

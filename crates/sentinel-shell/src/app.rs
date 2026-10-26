@@ -14,7 +14,9 @@ use sentinel_bridge::BridgeRouter;
 use sentinel_core::{BrowserConfig, Error, Result};
 use sentinel_device_host::{DeviceHost, SystemBackend};
 use sentinel_dll_host::DllHost;
+use sentinel_engine::jsbridge::{install_async_bridge, resolve_call, PendingCall, PendingCalls};
 use sentinel_engine::page::{Engine, PageView, SpecialKey};
+use sentinel_plugin::{PluginRegistry, PluginResult};
 use sentinel_hosts::HostRouter;
 use sentinel_permissions::{Capability, InMemoryBroker, Origin, PermissionBroker, PermissionState};
 use winit::application::ApplicationHandler;
@@ -52,6 +54,10 @@ struct Tab {
     is_home: bool,
     /// Previous-frame loading state, to detect load completion.
     loading: bool,
+    /// Async plugin calls THIS tab's page enqueued (`window.share`). Drained and
+    /// resolved only on this tab's own view, so a result can never cross to
+    /// another tab or document.
+    plugin_pending: PendingCalls,
 }
 
 /// Enumerate USB + serial devices in Rust for injection into the dashboard.
@@ -63,6 +69,28 @@ pub fn device_snapshot_json() -> String {
     let usb_json = serde_json::to_string(&usb).unwrap_or_else(|_| "null".into());
     let serial_json = serde_json::to_string(&serial).unwrap_or_else(|_| "null".into());
     format!("{{\"usb\":{usb_json},\"serial\":{serial_json}}}")
+}
+
+/// Parse a `window.share` request (`{kind:'run'|'list', id?, request?}`) and
+/// service it against `registry`, returning the JSON string to resolve the page
+/// Promise with: a `PluginResult` envelope for `run`, or the descriptor array for
+/// `list`.
+fn dispatch_plugin_request(registry: &mut PluginRegistry, request_json: &str) -> String {
+    let value: serde_json::Value = match serde_json::from_str(request_json) {
+        Ok(v) => v,
+        Err(_) => return PluginResult::fail("bad plugin request").to_json(),
+    };
+    match value.get("kind").and_then(|k| k.as_str()) {
+        Some("list") => {
+            serde_json::to_string(&registry.descriptors()).unwrap_or_else(|_| "[]".to_string())
+        }
+        Some("run") => {
+            let id = value.get("id").and_then(|x| x.as_str()).unwrap_or("");
+            let request = value.get("request").and_then(|x| x.as_str()).unwrap_or("");
+            registry.dispatch(id, request).to_json()
+        }
+        _ => PluginResult::fail("unknown plugin request kind").to_json(),
+    }
 }
 
 /// A short tab label from the view's current URL (host), or "Dashboard" when the
@@ -103,6 +131,7 @@ pub fn run(config: &BrowserConfig, home_html: String) -> Result<()> {
         nav_queue: Arc::new(Mutex::new(Vec::new())),
         router: None,
         executor: None,
+        registry: crate::plugins::builtin_registry(),
         home_origin: Origin::parse(BUILTIN_ORIGIN).expect("valid"),
         chrome_installed: false,
         needs_tab_sync: true,
@@ -128,6 +157,8 @@ struct App {
     nav_queue: Arc<Mutex<Vec<String>>>,
     router: Option<Router>,
     executor: Option<Executor>,
+    /// Built-in plugins (`share.RunPlugin` / `GetPlugins` dispatch target).
+    registry: PluginRegistry,
     home_origin: Origin,
     /// Whether the chrome's nav bridge has been installed (chrome loads once).
     chrome_installed: bool,
@@ -204,7 +235,12 @@ impl ApplicationHandler for App {
         self.surface = Some(surface);
         self.engine = Some(engine);
         self.chrome = Some(chrome);
-        self.tabs = vec![Tab { view: content, is_home: true, loading: true }];
+        self.tabs = vec![Tab {
+            view: content,
+            is_home: true,
+            loading: true,
+            plugin_pending: Arc::new(Mutex::new(Vec::new())),
+        }];
         self.active = 0;
         self.router = Some(router);
         self.executor = Some(executor);
@@ -302,6 +338,7 @@ impl ApplicationHandler for App {
     fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
         self.apply_nav_commands();
         self.install_bridges_if_ready();
+        self.process_plugin_calls();
         if self.chrome_installed && self.needs_tab_sync {
             self.sync_tabs_to_chrome();
             self.needs_tab_sync = false;
@@ -359,7 +396,10 @@ impl App {
             if let (Some(tab), Some(router), Some(executor)) =
                 (self.tabs.get(self.active), &self.router, &self.executor)
             {
-                let _ = tab.view.install_native_now(router.clone(), executor.clone(), origin);
+                let _ = tab.view.install_native_now(router.clone(), executor.clone(), origin.clone());
+                // window.share (async plugin bridge): bound to this document's origin
+                // and to THIS tab's own pending queue.
+                let _ = install_async_bridge(tab.view.view(), origin.clone(), tab.plugin_pending.clone());
             }
             // Re-render the address bar + tab titles for the completed load.
             self.needs_tab_sync = true;
@@ -381,6 +421,7 @@ impl App {
         if commands.is_empty() {
             return;
         }
+        let mut navigated = false;
         for cmd in commands {
             // Per-tab navigation acts on the active tab. `nav`/`back`/`forward`
             // leave the dashboard, dropping its home-origin trust (see
@@ -390,20 +431,24 @@ impl App {
                     let _ = tab.view.load_url(&normalize_url(url));
                     tab.is_home = false;
                 }
+                navigated = true;
             } else if cmd == "back" {
                 if let Some(tab) = self.tabs.get_mut(self.active) {
                     tab.view.go_back();
                     tab.is_home = false;
                 }
+                navigated = true;
             } else if cmd == "forward" {
                 if let Some(tab) = self.tabs.get_mut(self.active) {
                     tab.view.go_forward();
                     tab.is_home = false;
                 }
+                navigated = true;
             } else if cmd == "reload" {
                 if let Some(tab) = self.tabs.get(self.active) {
                     tab.view.reload();
                 }
+                navigated = true;
             } else if cmd == "newtab" {
                 self.open_tab();
                 self.needs_tab_sync = true;
@@ -421,6 +466,14 @@ impl App {
                 }
             }
         }
+        // A document navigation abandons that document's in-flight plugin calls
+        // (its JS context resets); drop the active tab's queue so no stale result
+        // is delivered to the new document.
+        if navigated {
+            if let Some(tab) = self.tabs.get(self.active) {
+                tab.plugin_pending.lock().unwrap_or_else(|p| p.into_inner()).clear();
+            }
+        }
     }
 
     /// Open a new tab showing the built-in dashboard and make it active.
@@ -432,7 +485,12 @@ impl App {
             None => return,
         };
         let _ = view.load_html(&self.home_html);
-        self.tabs.push(Tab { view, is_home: true, loading: true });
+        self.tabs.push(Tab {
+            view,
+            is_home: true,
+            loading: true,
+            plugin_pending: Arc::new(Mutex::new(Vec::new())),
+        });
         self.active = self.tabs.len() - 1;
     }
 
@@ -468,6 +526,45 @@ impl App {
         let url = self.tabs.get(self.active).and_then(|t| t.view.current_url()).unwrap_or_default();
         let url_json = serde_json::to_string(&url).unwrap_or_else(|_| "\"\"".into());
         chrome.eval(&format!("window.setUrl && window.setUrl({url_json})"));
+    }
+
+    /// Drain and service async plugin calls from `window.share`. Each tab's queue
+    /// is drained and resolved ONLY on that tab's own view, so a result can never
+    /// cross to another tab; each call is additionally gated by the origin that
+    /// made it.
+    fn process_plugin_calls(&mut self) {
+        // Snapshot (tab index, its calls) so we don't hold a borrow of self.tabs
+        // while dispatching (which borrows self.registry).
+        let mut work: Vec<(usize, Vec<PendingCall>)> = Vec::new();
+        for (i, tab) in self.tabs.iter().enumerate() {
+            let calls: Vec<PendingCall> = {
+                let mut q = tab.plugin_pending.lock().unwrap_or_else(|p| p.into_inner());
+                std::mem::take(&mut *q)
+            };
+            if !calls.is_empty() {
+                work.push((i, calls));
+            }
+        }
+        for (i, calls) in work {
+            for c in calls {
+                // Gate by the ORIGIN captured at enqueue time.
+                let granted = self.router.as_ref().is_some_and(|r| {
+                    let g = r.lock().unwrap_or_else(|p| p.into_inner());
+                    g.broker().check(&c.origin, Capability::Plugin) == PermissionState::Granted
+                });
+                let result_json = if granted {
+                    dispatch_plugin_request(&mut self.registry, &c.request)
+                } else {
+                    PluginResult::fail("plugin access not permitted for this origin").to_json()
+                };
+                // Resolve on the SAME tab that made the call. The JS shim no-ops on
+                // an unknown id (e.g. that tab navigated), so there is no stale or
+                // cross-document delivery.
+                if let Some(tab) = self.tabs.get(i) {
+                    let _ = resolve_call(tab.view.view(), c.call_id, &result_json);
+                }
+            }
+        }
     }
 
     fn paint(&mut self) {
