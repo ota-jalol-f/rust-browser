@@ -1967,6 +1967,7 @@ dependencies = [
  "sentinel-hosts",
  "sentinel-ipc",
  "sentinel-permissions",
+ "serde_json",
  "ul-next",
 ]
 
@@ -1999,6 +2000,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "sentinel-plugin"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "thiserror 1.0.69",
+]
+
+[[package]]
 name = "sentinel-shell"
 version = "0.1.0"
 dependencies = [
@@ -2010,6 +2020,7 @@ dependencies = [
  "sentinel-hosts",
  "sentinel-ipc",
  "sentinel-permissions",
+ "sentinel-plugin",
  "serde_json",
  "softbuffer",
  "winit",
