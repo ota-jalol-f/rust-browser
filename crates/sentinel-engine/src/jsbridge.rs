@@ -303,6 +303,9 @@ pub fn install_async_bridge(view: &View, origin: Origin, pending: PendingCalls) 
              RunPluginStream: function(id, request, onChunk){\
                return enqueue(JSON.stringify({kind:'run', id:id, request:reqStr(request), stream:true}), onChunk);\
              },\
+             RunPluginUi: function(id, request){\
+               return enqueue(JSON.stringify({kind:'run', id:id, request:reqStr(request), ui:true}));\
+             },\
              GetPlugins: function(){ return enqueue(JSON.stringify({kind:'list'})); }\
            };\
          })();";

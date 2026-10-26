@@ -5,7 +5,8 @@
 //! `window.share` bridge (one-shot and streaming) end to end.
 
 use sentinel_plugin::{
-    Plugin, PluginDescriptor, PluginKind, PluginRegistry, PluginResult, PluginStream, StreamStep,
+    Plugin, PluginDescriptor, PluginKind, PluginRegistry, PluginResult, PluginStream, PluginUi,
+    StreamStep, UiStep,
 };
 
 /// A minimal built-in plugin mirroring the reference `Asbt.System`: answers
@@ -71,12 +72,97 @@ impl Plugin for ReaderPlugin {
     }
 }
 
+/// A demo MODAL UI plugin: shows a confirm dialog in a full-window overlay and
+/// resolves with `confirmed` / cancel. Proves `window.share.RunPluginUi` end to
+/// end. Real UI plugins (signature pad, ID reader, camera) replace this.
+pub struct ConfirmPlugin;
+
+/// The overlay's HTML. Opaque full window (no backdrop blending needed), a
+/// centred card, a `#msg` filled from the host via `window.ui.onUpdate`
+/// (`textContent`, never HTML), and OK / Cancel buttons that `window.ui.send`.
+const CONFIRM_HTML: &str = r##"<!DOCTYPE html>
+<html><head><meta charset="utf-8"><style>
+  html, body { margin: 0; height: 100%; background: rgba(13,17,23,0.001);
+    font-family: "Segoe UI", Arial, sans-serif; }
+  #scrim { position: fixed; inset: 0; background: #0d1117e6;
+    display: flex; align-items: center; justify-content: center; }
+  #card { width: 360px; background: #20242b; color: #e6edf3; border: 1px solid #444c56;
+    border-radius: 10px; padding: 20px; box-shadow: 0 10px 40px #000a; }
+  #msg { font-size: 15px; line-height: 1.5; margin: 0 0 18px; min-height: 22px; }
+  .row { display: flex; gap: 10px; justify-content: flex-end; }
+  button { height: 34px; padding: 0 16px; border-radius: 6px; cursor: pointer; font-size: 13px;
+    border: 1px solid #444c56; background: #2d333b; color: #cdd9e5; }
+  button:hover { background: #373e47; }
+  #ok { background: #d9772b; border-color: #d9772b; color: #fff; }
+</style></head><body>
+  <div id="scrim"><div id="card">
+    <p id="msg"></p>
+    <div class="row">
+      <button id="cancel" onclick="window.ui && window.ui.send('cancel')">Bekor</button>
+      <button id="ok" onclick="window.ui && window.ui.send('ok')">OK</button>
+    </div>
+  </div></div>
+<script>
+  window.ui = window.ui || {};
+  window.ui.onUpdate = function (j) {
+    try { document.getElementById('msg').textContent = JSON.parse(j).message || ''; } catch (e) {}
+  };
+</script></body></html>
+"##;
+
+struct ConfirmUi {
+    answer: Option<PluginResult>,
+    pushed: bool,
+}
+
+impl PluginUi for ConfirmUi {
+    fn html(&self) -> String {
+        CONFIRM_HTML.to_string()
+    }
+    fn on_message(&mut self, message: &str) {
+        self.answer = Some(match message {
+            "ok" => PluginResult::ok("confirmed"),
+            _ => PluginResult::cancel(),
+        });
+    }
+    fn poll(&mut self) -> UiStep {
+        if let Some(r) = self.answer.take() {
+            return UiStep::Done(r);
+        }
+        if !self.pushed {
+            self.pushed = true;
+            // Data reaches the overlay only through this channel, never embedded
+            // in html() — so it can't inject markup.
+            return UiStep::Update(r#"{"message":"Davom etilsinmi?"}"#.to_string());
+        }
+        UiStep::Pending
+    }
+}
+
+impl Plugin for ConfirmPlugin {
+    fn descriptor(&self) -> PluginDescriptor {
+        PluginDescriptor {
+            id: "Asbt.Confirm".to_string(),
+            name: "confirm".to_string(),
+            version: "1.0.0".to_string(),
+            kind: PluginKind::Ui,
+        }
+    }
+    fn execute(&mut self, _request: &str) -> PluginResult {
+        PluginResult::fail("Asbt.Confirm is a UI plugin; use RunPluginUi")
+    }
+    fn execute_ui(&mut self, _request: &str) -> Option<Box<dyn PluginUi>> {
+        Some(Box::new(ConfirmUi { answer: None, pushed: false }))
+    }
+}
+
 /// Build the registry of built-in plugins the shell ships with.
 pub fn builtin_registry() -> PluginRegistry {
     let mut registry = PluginRegistry::new();
     // Distinct ids — registration cannot clash; ignore the Result.
     let _ = registry.register(Box::new(SystemPlugin));
     let _ = registry.register(Box::new(ReaderPlugin));
+    let _ = registry.register(Box::new(ConfirmPlugin));
     registry
 }
 
@@ -107,5 +193,20 @@ mod tests {
         assert_eq!(chunks.len(), 3);
         assert!(chunks[0].contains("connecting"));
         assert_eq!(final_result, PluginResult::ok(r#"{"read":true}"#));
+    }
+
+    #[test]
+    fn confirm_plugin_is_a_ui_op_that_resolves_on_ok() {
+        let mut reg = builtin_registry();
+        let mut ui = reg.dispatch_ui("Asbt.Confirm", "{}").expect("should be a UI op");
+        assert!(ui.html().contains("window.ui"));
+        // plugin -> overlay: one update is pushed first.
+        assert!(matches!(ui.poll(), UiStep::Update(_)));
+        // overlay -> plugin: OK resolves it with "confirmed".
+        ui.on_message("ok");
+        match ui.poll() {
+            UiStep::Done(r) => assert_eq!(r, PluginResult::ok("confirmed")),
+            _ => panic!("expected completion after ok"),
+        }
     }
 }

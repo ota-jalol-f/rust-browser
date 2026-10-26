@@ -15,10 +15,11 @@ use sentinel_core::{BrowserConfig, Error, Result};
 use sentinel_device_host::{DeviceHost, SystemBackend};
 use sentinel_dll_host::DllHost;
 use sentinel_engine::jsbridge::{
-    emit_chunk, install_async_bridge, resolve_call, PendingCall, PendingCalls,
+    emit_chunk, install_async_bridge, install_ui_bridge, push_ui_update, resolve_call, PendingCall,
+    PendingCalls, UiMessages,
 };
 use sentinel_engine::page::{Engine, PageView, SpecialKey};
-use sentinel_plugin::{PluginRegistry, PluginResult, PluginStream, StreamStep};
+use sentinel_plugin::{PluginRegistry, PluginResult, PluginStream, PluginUi, StreamStep, UiStep};
 use sentinel_hosts::HostRouter;
 use sentinel_permissions::{Capability, InMemoryBroker, Origin, PermissionBroker, PermissionState};
 use winit::application::ApplicationHandler;
@@ -83,6 +84,26 @@ struct ActiveStream {
     stream: Box<dyn PluginStream>,
 }
 
+/// A modal plugin window shown as a full-window, opaque Ultralight HTML overlay.
+/// While open, all input is routed to it and it is composited on top of
+/// everything. Only one exists at a time (modal).
+struct Overlay {
+    /// The overlay view (full window).
+    view: PageView,
+    /// The running UI op driving it.
+    plugin: Box<dyn PluginUi>,
+    /// Overlay -> op messages (`window.ui.send`), drained each frame.
+    messages: UiMessages,
+    /// Whether the UI bridge has been installed (after the overlay page loads).
+    installed: bool,
+    /// The originating call to resolve when the overlay closes, and the document
+    /// identity it belongs to (so a navigated-away caller never gets a result).
+    tab: usize,
+    call_id: f64,
+    origin: Origin,
+    generation: u64,
+}
+
 /// Enumerate USB + serial devices in Rust for injection into the dashboard.
 pub fn device_snapshot_json() -> String {
     use sentinel_ipc::{Request, RequestExecutor};
@@ -92,6 +113,20 @@ pub fn device_snapshot_json() -> String {
     let usb_json = serde_json::to_string(&usb).unwrap_or_else(|_| "null".into());
     let serial_json = serde_json::to_string(&serial).unwrap_or_else(|_| "null".into());
     format!("{{\"usb\":{usb_json},\"serial\":{serial_json}}}")
+}
+
+/// If `request_json` is a modal UI run (`{kind:"run", ui:true, id, request}`),
+/// return `(id, request)`; otherwise `None`.
+fn parse_ui_run(request_json: &str) -> Option<(String, String)> {
+    let value: serde_json::Value = serde_json::from_str(request_json).ok()?;
+    let is_ui = value.get("ui").and_then(|s| s.as_bool()).unwrap_or(false);
+    if value.get("kind").and_then(|k| k.as_str()) == Some("run") && is_ui {
+        let id = value.get("id").and_then(|x| x.as_str()).unwrap_or("").to_string();
+        let request = value.get("request").and_then(|x| x.as_str()).unwrap_or("").to_string();
+        Some((id, request))
+    } else {
+        None
+    }
 }
 
 /// If `request_json` is a streaming run (`{kind:"run", stream:true, id, request}`),
@@ -170,6 +205,7 @@ pub fn run(config: &BrowserConfig, home_html: String) -> Result<()> {
         executor: None,
         registry: crate::plugins::builtin_registry(),
         active_streams: Vec::new(),
+        overlay: None,
         home_origin: Origin::parse(BUILTIN_ORIGIN).expect("valid"),
         chrome_installed: false,
         needs_tab_sync: true,
@@ -199,6 +235,8 @@ struct App {
     registry: PluginRegistry,
     /// Running streaming plugin calls (`share.RunPluginStream`), polled each frame.
     active_streams: Vec<ActiveStream>,
+    /// The open modal plugin overlay, if any (`share.RunPluginUi`).
+    overlay: Option<Overlay>,
     home_origin: Origin,
     /// Whether the chrome's nav bridge has been installed (chrome loads once).
     chrome_installed: bool,
@@ -304,6 +342,9 @@ impl ApplicationHandler for App {
                 if let Some(t) = self.tabs.get_mut(self.active) {
                     t.view.resize(win_w, content_h);
                 }
+                if let Some(ov) = self.overlay.as_mut() {
+                    ov.view.resize(win_w, win_h);
+                }
                 if let Some(window) = &self.window {
                     window.request_redraw();
                 }
@@ -315,7 +356,9 @@ impl ApplicationHandler for App {
                     }
                     MouseScrollDelta::PixelDelta(p) => (p.x as i32, p.y as i32),
                 };
-                if self.cursor.y as i32 >= self.bar_h as i32 {
+                if let Some(ov) = &self.overlay {
+                    ov.view.scroll(dx, dy);
+                } else if self.cursor.y as i32 >= self.bar_h as i32 {
                     if let Some(t) = self.tabs.get(self.active) {
                         t.view.scroll(dx, dy);
                     }
@@ -326,7 +369,9 @@ impl ApplicationHandler for App {
             WindowEvent::CursorMoved { position, .. } => {
                 self.cursor = position;
                 let (x, y) = (position.x as i32, position.y as i32);
-                if y < self.bar_h as i32 {
+                if let Some(ov) = &self.overlay {
+                    ov.view.mouse_move(x, y);
+                } else if y < self.bar_h as i32 {
                     if let Some(c) = &self.chrome {
                         c.mouse_move(x, y);
                     }
@@ -338,7 +383,9 @@ impl ApplicationHandler for App {
                 if button == MouseButton::Left {
                     let (x, y) = (self.cursor.x as i32, self.cursor.y as i32);
                     let pressed = state == ElementState::Pressed;
-                    if y < self.bar_h as i32 {
+                    if let Some(ov) = &self.overlay {
+                        ov.view.mouse_button(x, y, pressed);
+                    } else if y < self.bar_h as i32 {
                         self.focus = Focus::Chrome;
                         if let Some(c) = &self.chrome {
                             c.mouse_button(x, y, pressed);
@@ -352,6 +399,35 @@ impl ApplicationHandler for App {
                 }
             }
             WindowEvent::KeyboardInput { event, .. } => {
+                // While a modal overlay is open, input is captured by it. Esc always
+                // force-closes (cancel) — the host owns the escape hatch.
+                if self.overlay.is_some() {
+                    let pressed = event.state == ElementState::Pressed;
+                    if pressed {
+                        if let Key::Named(NamedKey::Escape) = event.logical_key {
+                            let r = self.overlay.as_mut().map(|ov| ov.plugin.on_close());
+                            if let Some(result) = r {
+                                self.close_overlay(Some(result));
+                            }
+                            return;
+                        }
+                    }
+                    if let Some(ov) = &self.overlay {
+                        if let Key::Named(named) = &event.logical_key {
+                            if let Some(sk) = map_named_key(named) {
+                                ov.view.key_special(sk, pressed);
+                            }
+                        }
+                        if pressed {
+                            if let Some(text) = event.text.as_ref() {
+                                if !text.chars().all(char::is_control) {
+                                    ov.view.key_char(text);
+                                }
+                            }
+                        }
+                    }
+                    return;
+                }
                 let target = match self.focus {
                     Focus::Chrome => self.chrome.as_ref(),
                     Focus::Content => self.tabs.get(self.active).map(|t| &t.view),
@@ -381,6 +457,7 @@ impl ApplicationHandler for App {
         self.install_bridges_if_ready();
         self.process_plugin_calls();
         self.poll_streams();
+        self.process_overlay();
         if self.chrome_installed && self.needs_tab_sync {
             self.sync_tabs_to_chrome();
             self.needs_tab_sync = false;
@@ -622,9 +699,27 @@ impl App {
                     }
                     continue;
                 }
-                // A streaming call (RunPluginStream) starts a long-running
-                // operation polled each frame; everything else resolves one-shot.
-                if let Some((id, req)) = parse_stream_run(&c.request) {
+                // A modal UI call opens an overlay; a streaming call starts a
+                // long-running polled operation; everything else resolves one-shot.
+                if let Some((id, req)) = parse_ui_run(&c.request) {
+                    if self.overlay.is_some() {
+                        if let Some(tab) = self.tabs.get(i) {
+                            let busy =
+                                PluginResult::fail("a plugin window is already open").to_json();
+                            let _ = resolve_call(tab.view.view(), c.call_id, &busy);
+                        }
+                    } else {
+                        match self.registry.dispatch_ui(&id, &req) {
+                            Ok(ui) => self.open_overlay(i, c.call_id, c.origin.clone(), ui),
+                            Err(result) => {
+                                if let Some(tab) = self.tabs.get(i) {
+                                    let _ =
+                                        resolve_call(tab.view.view(), c.call_id, &result.to_json());
+                                }
+                            }
+                        }
+                    }
+                } else if let Some((id, req)) = parse_stream_run(&c.request) {
                     match self.registry.dispatch_stream(&id, &req) {
                         Ok(stream) => {
                             let generation = self.tabs.get(i).map(|t| t.generation).unwrap_or(0);
@@ -698,6 +793,109 @@ impl App {
         }
     }
 
+    /// Open a modal overlay for UI op `ui`, created by the call `(tab, call_id,
+    /// origin)`. Full-window, opaque; the UI bridge installs once it loads.
+    fn open_overlay(&mut self, tab: usize, call_id: f64, origin: Origin, ui: Box<dyn PluginUi>) {
+        let win_w = self.width_px();
+        let win_h = self.height_px();
+        let view = match self.engine.as_ref().and_then(|e| e.create_page(win_w, win_h).ok()) {
+            Some(v) => v,
+            None => {
+                if let Some(t) = self.tabs.get(tab) {
+                    let err = PluginResult::fail("overlay unavailable").to_json();
+                    let _ = resolve_call(t.view.view(), call_id, &err);
+                }
+                return;
+            }
+        };
+        let _ = view.load_html(&ui.html());
+        let generation = self.tabs.get(tab).map(|t| t.generation).unwrap_or(0);
+        self.overlay = Some(Overlay {
+            view,
+            plugin: ui,
+            messages: Arc::new(Mutex::new(Vec::new())),
+            installed: false,
+            tab,
+            call_id,
+            origin,
+            generation,
+        });
+    }
+
+    /// Drive the open overlay: install its bridge once loaded, force-close it if
+    /// its originating document went away, feed it overlay messages, poll it, push
+    /// updates, and resolve + close on completion.
+    fn process_overlay(&mut self) {
+        // Install the UI bridge once the overlay page has finished loading.
+        let ready = match &self.overlay {
+            Some(ov) => ov.installed || !ov.view.is_loading(),
+            None => return,
+        };
+        if !ready {
+            return;
+        }
+        if let Some(ov) = self.overlay.as_mut() {
+            if !ov.installed {
+                let _ = install_ui_bridge(ov.view.view(), ov.messages.clone());
+                ov.installed = true;
+            }
+        }
+        // Guard: the originating document must still be the one that opened it.
+        let guard_ok = match &self.overlay {
+            Some(ov) => {
+                self.tabs.get(ov.tab).map(|t| t.generation) == Some(ov.generation)
+                    && self.tab_current_origin(ov.tab) == ov.origin
+            }
+            None => return,
+        };
+        if !guard_ok {
+            // Force-close without delivering: the caller's Promise is gone.
+            if let Some(ov) = self.overlay.as_mut() {
+                let _ = ov.plugin.on_close();
+            }
+            self.overlay = None;
+            return;
+        }
+        // Overlay -> op messages.
+        if let Some(ov) = self.overlay.as_mut() {
+            let msgs: Vec<String> = {
+                let mut q = ov.messages.lock().unwrap_or_else(|p| p.into_inner());
+                std::mem::take(&mut *q)
+            };
+            for m in &msgs {
+                ov.plugin.on_message(m);
+            }
+        }
+        // Poll the op: push an update, or resolve + close on completion.
+        let step = self.overlay.as_mut().map(|ov| ov.plugin.poll());
+        match step {
+            Some(UiStep::Update(json)) => {
+                if let Some(ov) = self.overlay.as_ref() {
+                    let _ = push_ui_update(ov.view.view(), &json);
+                }
+            }
+            Some(UiStep::Done(result)) => self.close_overlay(Some(result)),
+            _ => {}
+        }
+    }
+
+    /// Close the overlay, delivering `deliver` to the originating call only if that
+    /// document is still the one that opened it.
+    fn close_overlay(&mut self, deliver: Option<PluginResult>) {
+        let Some(ov) = self.overlay.take() else {
+            return;
+        };
+        if let Some(result) = deliver {
+            let still_valid = self.tabs.get(ov.tab).map(|t| t.generation) == Some(ov.generation)
+                && self.tab_current_origin(ov.tab) == ov.origin;
+            if still_valid {
+                if let Some(tab) = self.tabs.get(ov.tab) {
+                    let _ = resolve_call(tab.view.view(), ov.call_id, &result.to_json());
+                }
+            }
+        }
+    }
+
     fn paint(&mut self) {
         self.last_frame = Instant::now();
         let win_w = self.width_px();
@@ -725,6 +923,10 @@ impl App {
         chrome.blit_into(&mut buf, win_w, win_h, 0);
         if let Some(tab) = self.tabs.get(self.active) {
             tab.view.blit_into(&mut buf, win_w, win_h, bar_h);
+        }
+        // The modal overlay (opaque, full-window) composites on top of everything.
+        if let Some(ov) = &self.overlay {
+            ov.view.blit_into(&mut buf, win_w, win_h, 0);
         }
         let _ = buf.present();
     }

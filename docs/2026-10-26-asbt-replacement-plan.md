@@ -166,8 +166,16 @@ Faqat **SigPlusNET (imzo)** toza managed — eng katta xavf shu yerda.
    to'g'rilanadi). Uchdan-uchga isbot: registry `streaming_plugin_emits_chunks_then_final`, shell
    `reader_plugin_streams_status_then_final` (demo `Asbt.Reader`: status chunks → final), bridge
    `async_stream`. **Referensdagi "stream uzatib bo'lmaydi" muammosi to'liq yopildi.**
-2. **Plugin UI host**: modal device oynalari (imzo/ID/foto) WPF edi — endi **Ultralight HTML
-   overlay** (uchinchi overlay view yoki ikkinchi winit oyna) + input capture.
+2. **Plugin UI host (modal overlay)** ✅ BAJARILDI: modal device oynalari (imzo/ID/foto) WPF edi —
+   endi **Ultralight HTML overlay** (to'liq-oyna, opaque, hamma narsa ustida kompozitsiya).
+   `PluginUi` trait (`html`/`on_message`/`poll→UiStep`/`on_close`); engine `install_ui_bridge`
+   (`window.ui.send` overlay→host, `window.ui.onUpdate` host→overlay) + `push_ui_update`; shell
+   `Overlay` (modal input capture — hamma input overlay'ga, Esc force-close), `process_overlay`
+   (bridge o'rnatish→guard→messages→poll→update/resolve), bitta vaqtda bitta (busy). Xavfsizlik:
+   `html()` request datasini embed qilmaydi (injection yo'q), overlay'da `window.native`/`share`
+   yo'q, origin+generation guard (navigatsiyada yopiladi, natija boshqa hujjatga tushmaydi). Demo
+   `Asbt.Confirm`. **Isbot**: headless click testi (`tests/ui_bridge.rs`) — sintetik bosish
+   `onclick`ga yetadi + ikkala kanal haqiqiy Ultralight'da (`{"messages":["ok"],"status":"ready"}`).
 3. **Rust plugin trait + registry** ✅ BAJARILDI: `sentinel-plugin` krati — `Plugin` trait
    (`descriptor` + `execute`), `PluginDescriptor`/`PluginKind`, `PluginResult`
    (`{data,success,error_message}`, reference bilan bayt-mos), va `PluginRegistry`
