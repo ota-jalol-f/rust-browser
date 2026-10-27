@@ -30,6 +30,47 @@ pub struct PluginDescriptor {
     pub kind: PluginKind,
 }
 
+/// One method of a plugin's JS host object. The reference browser registered each
+/// plugin as a WebView2 host object under its `name` (e.g.
+/// `chrome.webview.hostObjects.idbox`) exposing typed methods (`ReadChipUid`,
+/// `ReadDocument`, …); pv-next calls those methods directly, NOT only
+/// `share.RunPlugin`. The bridge synthesizes the same surface: each method becomes
+/// a function that forwards `{"method":"<js>","args":[…]}` to [`Plugin::execute`]
+/// (or, when [`HostMethod::ui`], the modal UI path) and resolves the page Promise
+/// with the plugin's return value.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct HostMethod {
+    /// The exact JS member name pv-next calls (e.g. `"ReadChipUid"`), case-sensitive.
+    pub js: String,
+    /// Whether invoking it opens a modal window (routes through the UI overlay),
+    /// as opposed to a plain one-shot call.
+    pub ui: bool,
+}
+
+impl HostMethod {
+    /// A plain (non-UI) host method.
+    pub fn run(js: impl Into<String>) -> Self {
+        Self { js: js.into(), ui: false }
+    }
+    /// A host method that opens a modal window.
+    pub fn ui(js: impl Into<String>) -> Self {
+        Self { js: js.into(), ui: true }
+    }
+}
+
+/// A plugin's JS host object: its `name` (the `chrome.webview.hostObjects.<name>`
+/// key and the `GetPlugins().name` pv-next matches on), its dispatch `id`, and its
+/// methods. Serialized to the spec the engine builds the host objects from.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct HostObjectSpec {
+    /// Host-object key / `GetPlugins().name` (e.g. `"idbox"`).
+    pub name: String,
+    /// Dispatch id passed back to `RunPlugin` (e.g. `"Asbt.IdBox"`).
+    pub id: String,
+    /// The methods exposed on the host object.
+    pub methods: Vec<HostMethod>,
+}
+
 /// One step of a streaming plugin operation, produced by polling it.
 ///
 /// A streaming plugin (idbox chip-read status, live camera preview, progress)
@@ -99,6 +140,16 @@ pub trait Plugin {
     /// This plugin's identity and metadata.
     fn descriptor(&self) -> PluginDescriptor;
 
+    /// The methods this plugin exposes as a JS host object
+    /// (`chrome.webview.hostObjects.<name>.<method>`). The default is none, meaning
+    /// the plugin is reached only through `share.RunPlugin(id, …)`. A plugin that
+    /// pv-next drives via named host-object methods (idbox, system, …) overrides
+    /// this; each method's call is forwarded to [`Plugin::execute`] (or the UI path)
+    /// as `{"method":"<js>","args":[…]}`.
+    fn host_methods(&self) -> Vec<HostMethod> {
+        Vec::new()
+    }
+
     /// Handle one request (an opaque JSON string, plugin-defined) and return the
     /// result envelope. Must not panic; surface problems as
     /// [`PluginResult::fail`].
@@ -158,6 +209,24 @@ impl PluginRegistry {
     /// (backs `share.GetPlugins()`).
     pub fn descriptors(&self) -> Vec<PluginDescriptor> {
         self.plugins.iter().map(|p| p.descriptor()).collect()
+    }
+
+    /// The host-object specs for every registered plugin that exposes host methods,
+    /// in registration order. The engine builds `chrome.webview.hostObjects.<name>`
+    /// from this; plugins with no host methods are omitted (reached only via
+    /// `share.RunPlugin`).
+    pub fn host_object_specs(&self) -> Vec<HostObjectSpec> {
+        self.plugins
+            .iter()
+            .filter_map(|p| {
+                let methods = p.host_methods();
+                if methods.is_empty() {
+                    return None;
+                }
+                let d = p.descriptor();
+                Some(HostObjectSpec { name: d.name, id: d.id, methods })
+            })
+            .collect()
     }
 
     /// Whether a plugin with `id` is registered.

@@ -15,8 +15,8 @@ use sentinel_core::{BrowserConfig, Error, Result};
 use sentinel_device_host::{DeviceHost, SystemBackend};
 use sentinel_dll_host::DllHost;
 use sentinel_engine::jsbridge::{
-    emit_chunk, install_async_bridge, install_ui_bridge, push_ui_update, resolve_call, PendingCall,
-    PendingCalls, UiMessages,
+    emit_chunk, install_async_bridge, install_host_objects, install_ui_bridge, push_ui_update,
+    resolve_call, PendingCall, PendingCalls, UiMessages,
 };
 use sentinel_engine::page::{Engine, PageView, SpecialKey};
 use sentinel_plugin::{PluginRegistry, PluginResult, PluginStream, PluginUi, StreamStep, UiStep};
@@ -545,6 +545,10 @@ impl App {
             // dashboard; otherwise its parsed origin, or an opaque privilege-less
             // origin for file:/data:/about:blank/unparseable).
             let origin = self.tab_current_origin(self.active);
+            // Per-plugin JS host objects (chrome.webview.hostObjects.<name>) — the
+            // surface pv-next actually uses. Built from the registry each load.
+            let host_spec = serde_json::to_string(&self.registry.host_object_specs())
+                .unwrap_or_else(|_| "[]".to_string());
             if let (Some(tab), Some(router), Some(executor)) =
                 (self.tabs.get(self.active), &self.router, &self.executor)
             {
@@ -552,6 +556,8 @@ impl App {
                 // window.share (async plugin bridge): bound to this document's origin
                 // and to THIS tab's own pending queue.
                 let _ = install_async_bridge(tab.view.view(), origin.clone(), tab.plugin_pending.clone());
+                // Per-plugin host objects, layered on the async bridge just installed.
+                let _ = install_host_objects(tab.view.view(), &host_spec);
             }
             // Re-render the address bar + tab titles for the completed load.
             self.needs_tab_sync = true;

@@ -4,8 +4,6 @@
 //! `Asbt.System` plugin and a streaming `Asbt.Reader` demo prove the
 //! `window.share` bridge (one-shot and streaming) end to end.
 
-use sentinel_core::{Error, Result};
-use sentinel_ipc::{Request, Response};
 use sentinel_plugin::{
     Plugin, PluginDescriptor, PluginKind, PluginRegistry, PluginResult, PluginStream, PluginUi,
     StreamStep, UiStep,
@@ -165,59 +163,12 @@ pub fn builtin_registry() -> PluginRegistry {
     let _ = registry.register(Box::new(SystemPlugin));
     let _ = registry.register(Box::new(ReaderPlugin));
     let _ = registry.register(Box::new(ConfirmPlugin));
-    // idbox runs out of process (an x86 helper, for the real Elyctis chip SDK).
-    // Register a proxy that forwards to the helper; skip if it can't be spawned.
-    match spawn_idbox_proxy() {
-        Ok(proxy) => {
-            let _ = registry.register(Box::new(proxy));
-        }
-        Err(e) => eprintln!("[plugins] idbox helper unavailable: {e}"),
-    }
+    // idbox runs in-process: ReadChipUid is x64 PC/SC (no device SDK); ReadDocument
+    // (serial MRZ + x86 chip helper) is a documented stub until that flow lands.
+    // pv-next reaches it through its `idbox` JS host object (host_methods), the real
+    // pv-next contract — not only `share.RunPlugin`.
+    let _ = registry.register(Box::new(sentinel_idbox::IdBoxPlugin::new()));
     registry
-}
-
-/// A host-side proxy for a plugin that actually runs in an out-of-process helper.
-/// `execute` forwards the request over the pipe and returns the helper's envelope.
-/// Owns the helper so its lifetime matches the registry.
-///
-/// NOTE: `execute` blocks on the pipe round-trip. That is fine for fast calls
-/// (and the current fake device); a long modal op (real ReadDocument) will need
-/// the async helper-call path so it doesn't stall the frame loop.
-struct IdBoxProxy {
-    helper: sentinel_ipc_pipe::Helper,
-}
-
-impl Plugin for IdBoxProxy {
-    fn descriptor(&self) -> PluginDescriptor {
-        PluginDescriptor {
-            id: "Asbt.IdBox".to_string(),
-            name: "idbox".to_string(),
-            version: "1.0.0".to_string(),
-            kind: PluginKind::Ui,
-        }
-    }
-
-    fn execute(&mut self, request: &str) -> PluginResult {
-        let call = Request::Plugin { id: "Asbt.IdBox".to_string(), request: request.to_string() };
-        match self.helper.client().call(call) {
-            Ok(Response::Plugin { envelope }) => serde_json::from_str::<PluginResult>(&envelope)
-                .unwrap_or_else(|_| PluginResult::fail("idbox: bad helper envelope")),
-            Ok(other) => PluginResult::fail(format!("idbox: unexpected helper response: {other:?}")),
-            Err(e) => PluginResult::fail(format!("idbox helper error: {e}")),
-        }
-    }
-}
-
-/// Spawn the idbox helper (`sentinel-ipc-helper`, next to the running exe) and
-/// wrap it as a proxy plugin.
-fn spawn_idbox_proxy() -> Result<IdBoxProxy> {
-    let exe =
-        std::env::current_exe().map_err(|e| Error::Engine(format!("locate current exe: {e}")))?;
-    let dir = exe.parent().ok_or_else(|| Error::Engine("exe has no parent dir".to_string()))?;
-    let helper_name =
-        if cfg!(windows) { "sentinel-ipc-helper.exe" } else { "sentinel-ipc-helper" };
-    let helper = sentinel_ipc_pipe::spawn_helper(&dir.join(helper_name))?;
-    Ok(IdBoxProxy { helper })
 }
 
 #[cfg(test)]
@@ -247,6 +198,31 @@ mod tests {
         assert_eq!(chunks.len(), 3);
         assert!(chunks[0].contains("connecting"));
         assert_eq!(final_result, PluginResult::ok(r#"{"read":true}"#));
+    }
+
+    #[test]
+    fn idbox_is_registered_in_process_with_its_host_methods() {
+        let reg = builtin_registry();
+        assert!(reg.contains("Asbt.IdBox"));
+        // pv-next looks the host object up by name "idbox" and calls ReadChipUid /
+        // ReadDocument on it — the spec the bridge builds must carry exactly that.
+        let spec = reg.host_object_specs();
+        let idbox = spec.iter().find(|s| s.name == "idbox").expect("idbox host object");
+        assert_eq!(idbox.id, "Asbt.IdBox");
+        let methods: Vec<&str> = idbox.methods.iter().map(|m| m.js.as_str()).collect();
+        assert_eq!(methods, ["ReadChipUid", "ReadDocument"]);
+    }
+
+    #[test]
+    fn idbox_read_chip_uid_dispatches_to_real_pcsc() {
+        // The host-object method sends {"method":"ReadChipUid",...}; the real plugin
+        // runs PC/SC. No reader here → "" with success (never an error), matching the
+        // reference. With a card present it would be 14 hex chars.
+        let mut reg = builtin_registry();
+        let r = reg.dispatch("Asbt.IdBox", r#"{"method":"ReadChipUid","args":[]}"#);
+        assert!(r.success);
+        assert!(r.error_message.is_empty());
+        assert!(r.data.is_empty() || r.data.len() == 14);
     }
 
     #[test]

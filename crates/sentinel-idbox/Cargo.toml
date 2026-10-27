@@ -15,3 +15,9 @@ default = []
 [dependencies]
 sentinel-plugin = { path = "../sentinel-plugin" }
 serde_json = "1"
+
+# ReadChipUid talks to the OS smart-card service (winscard) over PC/SC — standard,
+# documented, no vendor SDK. Windows-only (the device target); other hosts build a
+# no-op so the crate compiles and tests everywhere.
+[target.'cfg(windows)'.dependencies]
+pcsc = "2"

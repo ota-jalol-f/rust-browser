@@ -1,44 +1,49 @@
-//! `sentinel-idbox`: the Elyctis ID BOX chip-reader plugin (`Asbt.IdBox`).
+//! `sentinel-idbox`: the Elyctis ID BOX reader plugin (`Asbt.IdBox`), the in-process
+//! Rust equivalent of the reference `Asbt.IdBox.Plugin`'s `IdBoxObj` host object.
 //!
-//! API mirrors the reference `idbox` host object:
-//! - `{"method":"readChipUid"}` → [`PluginResult`] whose `data` is 14 lowercase
-//!   hex chars (the PC/SC card UID), or `""` when no card/reader.
-//! - anything else → `ReadDocument`: `data` is the reader-result JSON string
-//!   (the consumer uses `Data.DocumentNumber` and `Data.BirthDate`).
+//! pv-next drives it through the JS host object `chrome.webview.hostObjects.idbox`
+//! (see `sentinel-plugin`'s host-method bridge), calling:
+//! - `ReadChipUid()` → the contactless card UID over **x64 PC/SC** (standard
+//!   `winscard`, no vendor SDK): APDU `FF CA 00 00 00`, the 10-byte response hex
+//!   lower-cased and cut to 14 chars (`data`), or `""` on any error — exactly the
+//!   reference `PcScChipUidReader` + `UidFormatter`. `success` stays `true`.
+//! - `ReadDocument()` → the MRZ + chip read. In the reference this opens a modal
+//!   window, reads the MRZ over serial, and reads the chip in an **x86 helper**
+//!   (`ElyMRTD.dll` is x86-only). That path needs the device + the serial scanner +
+//!   the vendor SDK, so it is a documented stub here (returns a device-missing
+//!   failure) until the modal + helper flow lands.
 //!
-//! The real device path FFIs the x86-native `ElyMRTD.dll` /`ElyRdrControl.dll`
-//! inside an x86 helper (`connect` / `establishBAC` / `getDG1` / `getDG2` / …) and
-//! will live behind a `device` feature (licensed vendor DLLs + i686 + hardware).
-//! The default build is a FAKE so the plugin and the host↔helper↔registry path are
-//! testable without a device.
+//! The generic `share.RunPlugin("Asbt.IdBox", {"method":"readChipUid"})` request
+//! shape is honoured too (case-insensitive `method`), matching the reference's
+//! `ExecuteAsync` dispatch.
 
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
 
-use sentinel_plugin::{Plugin, PluginDescriptor, PluginKind, PluginResult};
+use sentinel_plugin::{HostMethod, Plugin, PluginDescriptor, PluginKind, PluginResult};
 
-/// The idbox plugin. The fake device returns canned, correctly-shaped results.
+/// The idbox reader plugin.
 pub struct IdBoxPlugin;
 
 impl IdBoxPlugin {
-    /// Create the (fake-device) idbox plugin.
+    /// Create the idbox plugin.
     pub fn new() -> Self {
         IdBoxPlugin
     }
 
-    /// `ReadChipUid`: 14 lowercase hex chars of the card UID (fake), or `""`.
+    /// `ReadChipUid`: the card UID as 14 lowercase hex chars, or `""` when there is
+    /// no reader/card/service. Never fails on a PC/SC error (matches the reference:
+    /// the error is swallowed to `""`, `success` stays `true`).
     fn read_chip_uid(&self) -> PluginResult {
-        // Fake 7-byte UID → 14 hex chars, as a real Uzbek ID card would give.
-        PluginResult::ok("04a1b2c3d4e5f6")
+        PluginResult::ok(uid_via_pcsc().unwrap_or_default())
     }
 
-    /// `ReadDocument`: the reader-result JSON envelope (fake MRZ-fallback shape).
+    /// `ReadDocument`: MRZ (serial) + chip (x86 helper) read. Stub until that flow
+    /// lands — the device, the serial scanner and the vendor SDK are all required.
     fn read_document(&self) -> PluginResult {
-        // Only Data.DocumentNumber and Data.BirthDate are consumed downstream.
-        let data = r#"{"AnswereId":1,"AnswereMessage":"Hujjat o'qildi","AnswereComment":"FAKE",
-"Data":{"DocumentNumber":"AA1234567","BirthDate":"01.01.1990","Surname":"TOSHMATOV",
-"Name":"ALISHER","Nationality":"UZB","Sex":"M","InformationFrom":1,"PersonPhoto":null}}"#;
-        PluginResult::ok(data)
+        PluginResult::fail(
+            "ID BOX hujjat o'qish hali ulanmagan — serial MRZ skaner + x86 chip helper kerak",
+        )
     }
 }
 
@@ -58,8 +63,16 @@ impl Plugin for IdBoxPlugin {
         }
     }
 
+    fn host_methods(&self) -> Vec<HostMethod> {
+        // pv-next calls hostObjects.idbox.ReadChipUid() / .ReadDocument() directly.
+        // ReadDocument is modal in the reference; it becomes a `ui` method (+ an
+        // `execute_ui` overlay) once the serial+helper read flow is implemented.
+        vec![HostMethod::run("ReadChipUid"), HostMethod::run("ReadDocument")]
+    }
+
     fn execute(&mut self, request: &str) -> PluginResult {
-        // `{"method":"readChipUid"}` (case-insensitive) → ReadChipUid; else ReadDocument.
+        // `{"method":"readChipUid"}` / `{"method":"ReadChipUid",…}` (case-insensitive)
+        // → ReadChipUid; anything else (incl. ReadDocument, empty, non-JSON) → ReadDocument.
         let method = serde_json::from_str::<serde_json::Value>(request)
             .ok()
             .and_then(|v| v.get("method").and_then(|m| m.as_str()).map(str::to_string));
@@ -70,33 +83,101 @@ impl Plugin for IdBoxPlugin {
     }
 }
 
+/// Format a PC/SC GET-UID response the way the reference `UidFormatter` does: hex-
+/// encode the WHOLE receive buffer (response + any zero padding), lowercase, and
+/// keep the first 14 chars. A 7-byte UID gives its 14 hex digits; a 4-byte UID
+/// gives 8 digits + the status word + padding.
+fn format_uid(buf: &[u8]) -> String {
+    let hex: String = buf.iter().map(|b| format!("{b:02x}")).collect();
+    hex.chars().take(14).collect()
+}
+
+/// Read the contactless UID of the card on the first PC/SC reader over the OS
+/// `winscard` service. `Err` on any failure (no service, no reader, no card, an
+/// over-long response); the caller maps that to `""` like the reference.
+#[cfg(windows)]
+fn uid_via_pcsc() -> Result<String, String> {
+    use pcsc::{Context, Protocols, Scope, ShareMode};
+
+    const GET_UID: [u8; 5] = [0xFF, 0xCA, 0x00, 0x00, 0x00];
+
+    let ctx = Context::establish(Scope::System).map_err(|e| e.to_string())?;
+    let mut readers_buf = [0u8; 2048];
+    let reader = ctx
+        .list_readers(&mut readers_buf)
+        .map_err(|e| e.to_string())?
+        .next()
+        .ok_or_else(|| "no smart card readers".to_string())?;
+    let card = ctx
+        .connect(reader, ShareMode::Shared, Protocols::T0 | Protocols::T1)
+        .map_err(|e| e.to_string())?;
+    // A 10-byte receive buffer, zero-padded after the response, matching the
+    // reference. A response longer than 10 bytes errors out (→ "").
+    let mut buf = [0u8; 10];
+    let _ = card.transmit(&GET_UID, &mut buf).map_err(|e| e.to_string())?;
+    Ok(format_uid(&buf))
+}
+
+/// Non-Windows builds have no `winscard`; the UID read yields `""` (the device
+/// target is Windows). Keeps the crate building and testing on any host.
+#[cfg(not(windows))]
+fn uid_via_pcsc() -> Result<String, String> {
+    Ok(String::new())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
+    // Vectors ported from the reference PcScTests (UidFormatter).
     #[test]
-    fn read_chip_uid_returns_14_hex() {
-        let mut p = IdBoxPlugin::new();
-        let r = p.execute(r#"{"method":"readChipUid"}"#);
-        assert!(r.success);
-        assert_eq!(r.data.len(), 14);
-        assert!(r.data.chars().all(|c| c.is_ascii_hexdigit()));
+    fn uid_seven_byte_is_its_fourteen_hex_digits() {
+        let res = [0x04, 0xA1, 0xB2, 0xC3, 0xD4, 0xE5, 0xF6, 0x90, 0x00, 0x00];
+        assert_eq!(format_uid(&res), "04a1b2c3d4e5f6");
     }
 
     #[test]
-    fn read_document_returns_doc_json() {
+    fn uid_four_byte_includes_status_word_and_padding() {
+        let res = [0xDE, 0xAD, 0xBE, 0xEF, 0x90, 0x00, 0x00, 0x00, 0x00, 0x00];
+        assert_eq!(format_uid(&res), "deadbeef900000");
+    }
+
+    #[test]
+    fn uid_empty_buffer_is_empty() {
+        assert_eq!(format_uid(&[]), "");
+    }
+
+    #[test]
+    fn read_chip_uid_never_fails_and_is_empty_or_14_hex() {
+        // No reader on the dev/CI machine → "" (success stays true), exactly the
+        // reference's ReadUid_onThisMachine contract. With a reader+card it is 14 hex.
         let mut p = IdBoxPlugin::new();
-        let r = p.execute("{}");
+        let r = p.execute(r#"{"method":"readChipUid"}"#);
         assert!(r.success);
-        assert!(r.data.contains("DocumentNumber"));
-        assert!(r.data.contains("BirthDate"));
-        // The `data` is itself valid JSON (parses).
-        assert!(serde_json::from_str::<serde_json::Value>(&r.data).is_ok());
+        assert!(r.error_message.is_empty());
+        assert!(r.data.is_empty() || (r.data.len() == 14 && r.data.chars().all(|c| c.is_ascii_hexdigit())));
     }
 
     #[test]
     fn method_is_case_insensitive() {
         let mut p = IdBoxPlugin::new();
-        assert_eq!(p.execute(r#"{"method":"READCHIPUID"}"#).data.len(), 14);
+        let r = p.execute(r#"{"method":"READCHIPUID"}"#);
+        assert!(r.success);
+        assert!(r.data.is_empty() || r.data.len() == 14);
+    }
+
+    #[test]
+    fn read_document_is_a_device_missing_failure_stub() {
+        let mut p = IdBoxPlugin::new();
+        let r = p.execute("{}");
+        assert!(!r.success);
+        assert!(!r.error_message.is_empty());
+    }
+
+    #[test]
+    fn host_methods_match_pv_next() {
+        let p = IdBoxPlugin::new();
+        let names: Vec<String> = p.host_methods().into_iter().map(|m| m.js).collect();
+        assert_eq!(names, ["ReadChipUid", "ReadDocument"]);
     }
 }

@@ -296,6 +296,10 @@ pub fn install_async_bridge(view: &View, origin: Origin, pending: PendingCalls) 
              if (e){ delete window.__sentinelPending[id]; e.resolve(json); }\
            };\
            function reqStr(r){ return (r==null?'':String(r)); }\
+           /* Expose the Promise-returning enqueue so per-plugin host objects\
+              (installed separately, see install_host_objects) route through the\
+              same callId -> __sentinelResolve machinery, origin stamp and gate. */\
+           window.__sentinelRun = enqueue;\
            window.share = {\
              RunPlugin: function(id, request){\
                return enqueue(JSON.stringify({kind:'run', id:id, request:reqStr(request)}));\
@@ -323,6 +327,58 @@ pub fn install_async_bridge(view: &View, origin: Origin, pending: PendingCalls) 
     {
         Ok(_) => Ok(()),
         Err(js_exception) => Err(Error::Engine(format!("async shim threw: {js_exception}"))),
+    }
+}
+
+/// Install per-plugin JS host objects (`chrome.webview.hostObjects.<name>`) from a
+/// spec JSON array (`[{"name","id","methods":[{"js","ui"}]}]`, built from
+/// [`sentinel_plugin::PluginRegistry::host_object_specs`]). Call AFTER
+/// [`install_async_bridge`] on the same view — each method forwards through the
+/// `window.__sentinelRun` it exposes, so the origin stamp, the capability gate and
+/// the per-tab queue all still apply.
+///
+/// This is the surface pv-next actually uses for most plugins: its services call
+/// `hostObjects.idbox.ReadChipUid()`, `hostObjects.system.ping()`, etc., not
+/// `share.RunPlugin`. Each generated method sends
+/// `{kind:'run', id, request:'{"method":"<js>","args":[…]}', ui:<ui>}` and resolves
+/// the page Promise with the plugin's return value (JSON-parsed when it parses, so
+/// an envelope arrives as an object and a raw string stays a string).
+///
+/// `spec_json` must be a trusted JSON array produced by the host (it is spliced
+/// into the shim as a literal). An overlay view must NOT get host objects.
+///
+/// # Errors
+/// [`Error::Engine`] if the shim fails to evaluate or throws.
+pub fn install_host_objects(view: &View, spec_json: &str) -> Result<()> {
+    // Template with a splice token rather than format! (the shim is dense with
+    // braces); the token is distinctive and cannot occur in the JSON.
+    let template = "(function(){\
+        var spec; try { spec = __SENTINEL_HOST_SPEC__; } catch (e) { return; }\
+        var run = window.__sentinelRun;\
+        if (!run || !Array.isArray(spec)) return;\
+        window.chrome = window.chrome || {};\
+        window.chrome.webview = window.chrome.webview || {};\
+        window.chrome.webview.hostObjects = window.chrome.webview.hostObjects || {};\
+        spec.forEach(function(p){\
+          var obj = {};\
+          (p.methods || []).forEach(function(m){\
+            obj[m.js] = function(){\
+              var args = Array.prototype.slice.call(arguments);\
+              var req = JSON.stringify({method: m.js, args: args});\
+              return run(JSON.stringify({kind:'run', id:p.id, request:req, ui:m.ui===true}))\
+                .then(function(s){ try { return JSON.parse(s); } catch(e){ return s; } });\
+            };\
+          });\
+          window.chrome.webview.hostObjects[p.name] = obj;\
+        });\
+      })();";
+    let shim = template.replace("__SENTINEL_HOST_SPEC__", spec_json);
+    match view
+        .evaluate_script(&shim)
+        .map_err(|e| Error::Engine(format!("host-objects shim eval failed: {e:?}")))?
+    {
+        Ok(_) => Ok(()),
+        Err(js_exception) => Err(Error::Engine(format!("host-objects shim threw: {js_exception}"))),
     }
 }
 
@@ -513,6 +569,83 @@ pub fn prove_async_stream_roundtrip() -> Result<String> {
     {
         Ok(s) => Ok(s),
         Err(js_exception) => Err(Error::Engine(format!("stream result read threw: {js_exception}"))),
+    }
+}
+
+/// Headless proof that pv-next's REAL idbox path works against our bridge: install
+/// the async bridge + an `idbox` host object, paste pv-next's own minified bridge
+/// helpers (`o`/`s`/`c` from `bridge-*.js`) and its `IdBoxPluginService.readChipUid`
+/// VERBATIM (imports stripped), then drive `readChipUid()` and settle the calls the
+/// way the host would: `GetPlugins` → the descriptor list, `ReadChipUid` → a
+/// `PluginResult` envelope. Returns what pv-next's service observed — proving the
+/// host-object method surface (`hostObjects.idbox.ReadChipUid()`), not just
+/// `share.RunPlugin`, reaches the plugin and unwraps correctly.
+///
+/// # Errors
+/// [`Error::Engine`] on engine/eval failure.
+pub fn prove_idbox_hostobject() -> Result<String> {
+    let renderer = crate::headless::init_renderer()?;
+    let view = crate::headless::create_cpu_view(&renderer, 16, 16)?;
+    view.load_html("<html><body></body></html>")
+        .map_err(|e| Error::Engine(format!("load_html: {e:?}")))?;
+    crate::headless::pump_until_loaded(&renderer, &view);
+
+    let pending: PendingCalls = Arc::new(Mutex::new(Vec::new()));
+    let origin = Origin::parse("https://pv-next.example").expect("valid test origin");
+    install_async_bridge(&view, origin, pending.clone())?;
+    // The idbox host object, exactly as the shell would build it from the registry.
+    install_host_objects(
+        &view,
+        r#"[{"name":"idbox","id":"Asbt.IdBox","methods":[{"js":"ReadChipUid","ui":false},{"js":"ReadDocument","ui":true}]}]"#,
+    )?;
+
+    // pv-next's own bridge helpers (bridge-aKl3hV6O.js), imports stripped, plus its
+    // IdBoxPluginService.readChipUid — verbatim logic.
+    let pv = "\
+        function e(){return globalThis.chrome && globalThis.chrome.webview && globalThis.chrome.webview.hostObjects}\
+        function t(){var h=e();return h&&h.share?h.share:null}\
+        async function i(){let x=t();if(!x)return[];try{let v=JSON.parse(await x.GetPlugins());return Array.isArray(v)?v:[]}catch(err){return[]}}\
+        var r=null;\
+        async function a(){if(r)return r;let p=i();r=p;let v=await p;return v.length===0&&r===p&&(r=null),v}\
+        async function o(name){return (await a()).some(function(x){return x.name===name})?(e()?e()[name]:null)||null:null}\
+        async function s(v){if(v==null)return null;var f=typeof v==='object'?v.ToString:void 0;if(typeof v==='object'&&typeof f!=='function')return v;var n=typeof v==='object'?await f.call(v):String(v);try{return JSON.parse(n)}catch(err){return n}}\
+        function c(v){if(v.success)return v.data;if(!v.error_message)return null;throw Error(v.error_message)}\
+        async function readChipUid(){var host=await o('idbox');if(!host)throw Error('no idbox host');var raw=await s(await host.ReadChipUid());return c(raw)==null?'':c(raw)}\
+        window.__uid='PENDING';\
+        readChipUid().then(function(u){window.__uid=u}).catch(function(err){window.__uid='ERR:'+err.message});";
+    if let Err(js) = view
+        .evaluate_script(pv)
+        .map_err(|e| Error::Engine(format!("pv-next harness eval failed: {e:?}")))?
+    {
+        return Err(Error::Engine(format!("pv-next harness threw: {js}")));
+    }
+
+    // Settle whatever the flow enqueues, pumping microtasks between rounds so the
+    // next await (GetPlugins → then ReadChipUid) can run. A few rounds suffice.
+    for _ in 0..6 {
+        let calls = std::mem::take(&mut *pending.lock().unwrap_or_else(|p| p.into_inner()));
+        for call in calls {
+            let kind: Option<String> = serde_json::from_str::<serde_json::Value>(&call.request)
+                .ok()
+                .and_then(|v| v.get("kind").and_then(|k| k.as_str()).map(String::from));
+            let reply = match kind.as_deref() {
+                Some("list") => {
+                    r#"[{"id":"Asbt.IdBox","name":"idbox","version":"1.0.0","kind":"ui"}]"#.to_string()
+                }
+                // Any run call here is ReadChipUid: reply with the PluginResult envelope.
+                _ => r#"{"data":"04a1b2c3d4e5f6","success":true,"error_message":""}"#.to_string(),
+            };
+            resolve_call(&view, call.call_id, &reply)?;
+        }
+        crate::headless::pump_until_loaded(&renderer, &view);
+    }
+
+    match view
+        .evaluate_script("window.__uid")
+        .map_err(|e| Error::Engine(format!("uid read failed: {e:?}")))?
+    {
+        Ok(s) => Ok(s),
+        Err(js_exception) => Err(Error::Engine(format!("uid read threw: {js_exception}"))),
     }
 }
 
