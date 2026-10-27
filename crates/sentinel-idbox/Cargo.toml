@@ -1,0 +1,17 @@
+[package]
+name = "sentinel-idbox"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+
+# The idbox (Elyctis ID BOX) chip-reader plugin. The real device path FFIs the
+# x86-native ElyMRTD.dll / ElyRdrControl.dll (connect/establishBAC/getDG1/getDG2…)
+# and runs inside an x86 helper process; it will go behind a `device` feature
+# (needs the licensed vendor DLLs, an i686 target, and hardware). The default build
+# ships a FAKE device so the plugin + transport + registry path is testable now.
+[features]
+default = []
+
+[dependencies]
+sentinel-plugin = { path = "../sentinel-plugin" }
+serde_json = "1"

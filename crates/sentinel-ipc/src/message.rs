@@ -113,6 +113,17 @@ pub enum Request {
         /// Handle of the DLL to unload.
         handle: u64,
     },
+
+    /// Run a plugin hosted in this (helper) process by id, passing an opaque
+    /// request string and getting back its `PluginResult` envelope. This runs a
+    /// plugin out of process — e.g. an x86 vendor-SDK plugin (idbox chip) in an
+    /// x86 helper the x64 host can't load the SDK into.
+    Plugin {
+        /// Plugin id (e.g. `"Asbt.IdBox"`).
+        id: String,
+        /// Opaque request payload (plugin-defined JSON).
+        request: String,
+    },
 }
 
 /// A response from a host process.
@@ -145,6 +156,12 @@ pub enum Response {
     Error {
         /// Human-readable failure description.
         message: String,
+    },
+    /// A plugin call's result: the plugin's `{data,success,error_message}` JSON
+    /// envelope as a string.
+    Plugin {
+        /// The `PluginResult` envelope, serialized.
+        envelope: String,
     },
 }
 

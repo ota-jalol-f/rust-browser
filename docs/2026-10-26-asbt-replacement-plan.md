@@ -215,6 +215,14 @@ stekiga yeta oladi. (Per-plugin host-object'lar kerak bo'lsa keyin qo'shiladi.)
   update-feed. Rust pluginlar sifatida (native cdylib yoki ichki modullar).
 
 ### Faza 5 — Pluginlarni Rust'da implement qilish (oson → qiyin)
+🚧 BOSHLANDI — **idbox (`Asbt.IdBox`)**: `sentinel-idbox` krati (`ReadChipUid`→14-hex UID,
+`ReadDocument`→reader-JSON, reference envelope shaklida). Hozir **fake device**; uchdan-uchga
+tasdiqlangan: host → named-pipe → x86 helper → registry → idbox → envelope (`tests/idbox_via_helper`).
+Haqiqiy yo'l x86-native `ElyMRTD.dll`/`ElyRdrControl.dll`ga FFI (`connect`/`establishBAC`/`getDG1`/
+`getDG2`… — C eksportlari PE'da tasdiqlangan; `.NET` wrapper CLR, ishlatilmaydi) helper ichida,
+`device` feature ortida (litsenziyali vendor DLL'lar + i686 target + qurilma kerak; headerlar yo'q
+→ imzolar reverse qilinadi).
+
 C# kodi spetsifikatsiya sifatida ishlatiladi; matnlar → Rust const (homoglyph testlari bilan),
 fixture/golden/FAKE_DEVICES → Rust testlari. Byte-aniq JPEG mumkin emas (GDI+ ≠ Rust encoder) —
 **piksel-parity tolerantligi** ishlatiladi (foto plugin allaqachon shunday qiladi).

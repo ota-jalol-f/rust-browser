@@ -30,6 +30,9 @@ pub fn required_capability(request: &Request) -> Capability {
         Request::DllLoad { .. } | Request::DllCall { .. } | Request::DllUnload { .. } => {
             Capability::Dll
         }
+
+        // A plugin passthrough (helper transport) is gated by the plugin capability.
+        Request::Plugin { .. } => Capability::Plugin,
     }
 }
 

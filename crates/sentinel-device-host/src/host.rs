@@ -58,6 +58,11 @@ impl<B: DeviceBackend> DeviceHost<B> {
                         .to_string(),
                 }
             }
+            // Plugin passthrough is handled by a plugin-hosting helper, not here.
+            Request::Plugin { .. } => Response::Error {
+                message: "plugin requests are handled by a plugin helper, not the device host"
+                    .to_string(),
+            },
         }
     }
 }
