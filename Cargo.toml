@@ -17,6 +17,7 @@ members = [
     "crates/sentinel-ipc-pipe",
     "crates/sentinel-idbox-core",
     "crates/sentinel-idbox",
+    "crates/sentinel-idbox-helper",
 ]
 
 [workspace.package]

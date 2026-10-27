@@ -25,6 +25,9 @@
 pub mod serial;
 pub mod session;
 
+#[cfg(feature = "device")]
+mod device;
+
 use sentinel_plugin::{HostMethod, Plugin, PluginDescriptor, PluginKind, PluginResult};
 
 /// The idbox reader plugin.
@@ -44,14 +47,61 @@ impl IdBoxPlugin {
     }
 
     /// `ReadDocument`: MRZ (serial) + chip (x86 helper) read, returned through the
-    /// plugin API (status via streaming), with NO modal window — the front-end owns
-    /// the UI. Stub until that flow lands — the device, the serial scanner and the
-    /// vendor SDK are all required.
+    /// plugin API with NO modal window — the front-end owns the UI, and the read runs
+    /// start-to-finish inside this call ([`session::read_document`]), streaming status
+    /// to the host log. Success → the Answere envelope in `data`; no data → `success`
+    /// false with an empty message (the front-end may retry).
+    ///
+    /// Needs the real devices, so the flow is compiled under the `device` feature; a
+    /// default build answers with a clear "not compiled" message (the host method is
+    /// always present so pv-next still sees `idbox.ReadDocument`).
     fn read_document(&self) -> PluginResult {
-        PluginResult::fail(
-            "ID BOX hujjat o'qish hali ulanmagan — serial MRZ skaner + x86 chip helper kerak",
-        )
+        read_document_impl()
     }
+}
+
+/// The real `device`-feature flow, or the not-compiled message otherwise.
+#[cfg(feature = "device")]
+fn read_document_impl() -> PluginResult {
+    use sentinel_idbox_core::reader_result::ReaderResultBuilder;
+    use session::ReadOutcome;
+
+    let devices = device::RealDevices::new();
+    let mut view = session::CollectingView::default();
+    let builder = ReaderResultBuilder::new(current_year());
+    let outcome = session::read_document(&devices, &mut view, &builder, &mut |m| {
+        eprintln!("[idbox] {m}");
+    });
+    for status in &view.statuses {
+        eprintln!("[idbox] status: {status}");
+    }
+    match outcome {
+        ReadOutcome::Data(json) => PluginResult::ok(json),
+        ReadOutcome::Cancel => PluginResult::fail(""),
+    }
+}
+
+/// Without the `device` feature the vendor SDK, serial scanner and PC/SC are not linked.
+#[cfg(not(feature = "device"))]
+fn read_document_impl() -> PluginResult {
+    PluginResult::fail("ID BOX hujjat o'qish `device` feature bilan qurilishi va qurilma ulanishi kerak")
+}
+
+/// `DateTime.Today.Year` for the `CMRZ` century heuristic, computed from the system
+/// clock without a date crate (Howard Hinnant's days-from-civil, inverted).
+#[cfg(feature = "device")]
+fn current_year() -> i32 {
+    use std::time::{SystemTime, UNIX_EPOCH};
+    let secs = SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0) as i64;
+    let z = secs / 86_400 + 719_468; // days since 0000-03-01
+    let era = if z >= 0 { z } else { z - 146_096 } / 146_097;
+    let doe = z - era * 146_097;
+    let yoe = (doe - doe / 1460 + doe / 36_524 - doe / 146_096) / 365;
+    let y = yoe + era * 400;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let month = if mp < 10 { mp + 3 } else { mp - 9 };
+    (y + i64::from(month <= 2)) as i32
 }
 
 impl Default for IdBoxPlugin {

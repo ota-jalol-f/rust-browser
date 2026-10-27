@@ -11,11 +11,12 @@
 # Build the GUI browser for Windows 7 (x64):
 #   cargo +nightly win7
 #
-# Build the x86 chip helper for Windows 7 (ElyMRTD.dll is x86-only):
+# Build the x86 ID BOX chip helper for Windows 7 with the real ElyMRTD FFI (the DLLs
+# are x86-only, so the helper must be i686):
 #   cargo +nightly win7-helper
 #
 # Host-arch dev builds/tests still use stable as before (`cargo build`,
 # `cargo test`) — these aliases are the only things that pull in nightly/build-std.
 [alias]
 win7 = "build -p sentinel-shell --features ultralight --target x86_64-win7-windows-msvc -Zbuild-std"
-win7-helper = "build -p sentinel-ipc-pipe --bin sentinel-ipc-helper --target i686-win7-windows-msvc -Zbuild-std"
+win7-helper = "build -p sentinel-idbox-helper --features device --target i686-win7-windows-msvc -Zbuild-std"

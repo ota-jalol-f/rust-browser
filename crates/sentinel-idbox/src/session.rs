@@ -268,6 +268,38 @@ fn set_all_cross(view: &mut dyn View) {
     }
 }
 
+/// A production [`View`] that records the status stream (so the plugin can forward it to
+/// the host log / page), with no window. Status lines arrive in order in [`statuses`](Self::statuses).
+#[derive(Default)]
+pub struct CollectingView {
+    /// Every status line, in order (error lines prefixed by nothing — see [`errors`](Self::errors)).
+    pub statuses: Vec<String>,
+    /// The subset of [`statuses`](Self::statuses) that were red (errors).
+    pub errors: Vec<String>,
+    /// Toasts raised during the read (caption, text).
+    pub toasts: Vec<(String, String)>,
+}
+
+impl View for CollectingView {
+    fn set_status(&mut self, text: &str) {
+        self.statuses.push(text.to_string());
+    }
+    fn set_status_error(&mut self, text: &str) {
+        self.statuses.push(text.to_string());
+        self.errors.push(text.to_string());
+    }
+    fn set_icon(&mut self, _icon: IdBoxIcon, _state: IconState) {}
+    fn set_mrz_lines(&mut self, _line1: &str, _line2: &str) {}
+    fn show_toast(&mut self, caption: &str, text: &str) {
+        self.toasts.push((caption.to_string(), text.to_string()));
+    }
+    fn show_error_message(&mut self, text: &str, _caption: &str) {
+        self.errors.push(text.to_string());
+    }
+    fn close_ok(&mut self, _data_json: &str) {}
+    fn close_cancel(&mut self) {}
+}
+
 /// Bridges a chip read's `status`/`alert` callbacks onto the [`View`] + log.
 struct ViewEvents<'a> {
     view: &'a mut dyn View,

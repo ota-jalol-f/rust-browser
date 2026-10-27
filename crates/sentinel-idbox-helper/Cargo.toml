@@ -1,0 +1,24 @@
+[package]
+name = "sentinel-idbox-helper"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+
+# The x86 chip helper: a tiny process the x64 plugin spawns to reach the x86-only
+# ElyMRTD.dll / ElyRdrControl.dll (which cannot be loaded into the x64 browser). It
+# connects to the plugin's CurrentUser named pipe and runs sentinel-idbox-core's
+# HelperServer. The real FFI is linked only for `device` on x86 (where the DLLs live);
+# every other build (incl. this x64 host for compile-checking) uses a stub SDK that
+# reports the chip unavailable, so the plugin falls back to the MRZ.
+[[bin]]
+name = "sentinel-idbox-helper"
+path = "src/main.rs"
+
+[features]
+default = []
+device = ["dep:libloading"]
+
+[dependencies]
+sentinel-idbox-core = { path = "../sentinel-idbox-core" }
+interprocess = "2.2.2"
+libloading = { version = "0.8.5", optional = true }
