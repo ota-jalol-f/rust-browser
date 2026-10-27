@@ -288,3 +288,72 @@ try {
         Err(e) => Err(Error::Engine(format!("caps eval failed: {e:?}"))),
     }
 }
+
+/// Load `url` and, while pumping for `budget`, measure how long each
+/// `update()+render()` pump takes (the CPU-render cost) and how long until the SPA
+/// mounts (loader gone + `#app` has children). Diagnoses a heavy-page freeze:
+/// large per-pump times ⇒ CPU-render is the bottleneck; `mountedMs:-1` ⇒ the page
+/// never mounted (a block). Returns JSON
+/// `{"mountedMs":n,"maxUpdateMs":f,"avgUpdateMs":f,"pumps":n,"final":{…}}`.
+///
+/// # Errors
+/// [`Error::Engine`] if the engine fails to initialize or the URL is rejected.
+pub fn probe_dist_timing(url: &str, budget: std::time::Duration) -> Result<String> {
+    use std::time::{Duration, Instant};
+
+    let renderer = init_renderer()?;
+    let view = create_cpu_view(&renderer, 1280, 800)?;
+    view.load_url(url).map_err(|e| Error::Engine(format!("load_url: {e:?}")))?;
+
+    let mount_check = "(function(){var a=document.getElementById('app');\
+        var l=document.getElementById('app-loader');\
+        return (!l && a && a.children.length>0) ? '1' : '0';})()";
+
+    let start = Instant::now();
+    let mut max_update_ms = 0f64;
+    let mut total_update_ms = 0f64;
+    let mut pumps: u64 = 0;
+    let mut mounted_ms: i64 = -1;
+    let mut last_check = Instant::now();
+    loop {
+        let t = Instant::now();
+        renderer.update();
+        renderer.render();
+        let dt = t.elapsed().as_secs_f64() * 1000.0;
+        if dt > max_update_ms {
+            max_update_ms = dt;
+        }
+        total_update_ms += dt;
+        pumps += 1;
+
+        if mounted_ms < 0 && last_check.elapsed() >= Duration::from_millis(250) {
+            last_check = Instant::now();
+            if let Ok(Ok(s)) = view.evaluate_script(mount_check) {
+                if s == "1" {
+                    mounted_ms = start.elapsed().as_millis() as i64;
+                }
+            }
+        }
+        if start.elapsed() >= budget {
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(16));
+    }
+
+    let avg = if pumps > 0 { total_update_ms / pumps as f64 } else { 0.0 };
+    let final_diag = view
+        .evaluate_script(
+            "(function(){var a=document.getElementById('app');\
+             var l=document.getElementById('app-loader');\
+             return JSON.stringify({loader:!!l, appChildren:a?a.children.length:-1,\
+                 href:location.href, title:document.title});})()",
+        )
+        .ok()
+        .and_then(|r| r.ok())
+        .unwrap_or_else(|| "null".to_string());
+
+    Ok(format!(
+        "{{\"mountedMs\":{mounted_ms},\"maxUpdateMs\":{max_update_ms:.1},\
+         \"avgUpdateMs\":{avg:.1},\"pumps\":{pumps},\"final\":{final_diag}}}"
+    ))
+}

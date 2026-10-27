@@ -221,6 +221,10 @@ pub fn run(config: &BrowserConfig, home_html: String) -> Result<()> {
         chrome_installed: false,
         needs_tab_sync: true,
         last_frame: Instant::now(),
+        perf_on: std::env::var_os("SENTINEL_PERF").is_some(),
+        perf_n: 0,
+        perf_update_sum: 0.0,
+        perf_update_max: 0.0,
     };
     event_loop.run_app(&mut app).map_err(|e| Error::Engine(format!("winit run: {e}")))
 }
@@ -259,6 +263,13 @@ struct App {
     needs_tab_sync: bool,
     /// Time of the last painted frame (for ~60 fps pacing).
     last_frame: Instant,
+    /// Env-gated (`SENTINEL_PERF`) frame-time instrumentation: accumulates
+    /// `engine.update()` (render) cost and logs avg/max every 60 frames. Diagnoses
+    /// whether a heavy page's jank is in the CPU render.
+    perf_on: bool,
+    perf_n: u32,
+    perf_update_sum: f64,
+    perf_update_max: f64,
 }
 
 impl ApplicationHandler for App {
@@ -948,7 +959,9 @@ impl App {
         else {
             return;
         };
+        let upd_t = Instant::now();
         engine.update();
+        let upd_ms = upd_t.elapsed().as_secs_f64() * 1000.0;
 
         let (Some(nw), Some(nh)) = (NonZeroU32::new(win_w), NonZeroU32::new(win_h)) else {
             return;
@@ -971,6 +984,25 @@ impl App {
             ov.view.blit_into(&mut buf, win_w, win_h, 0);
         }
         let _ = buf.present();
+
+        if self.perf_on {
+            self.perf_update_sum += upd_ms;
+            if upd_ms > self.perf_update_max {
+                self.perf_update_max = upd_ms;
+            }
+            self.perf_n += 1;
+            if self.perf_n >= 60 {
+                eprintln!(
+                    "[perf] engine.update() avg {:.1}ms max {:.1}ms over {} frames",
+                    self.perf_update_sum / self.perf_n as f64,
+                    self.perf_update_max,
+                    self.perf_n
+                );
+                self.perf_n = 0;
+                self.perf_update_sum = 0.0;
+                self.perf_update_max = 0.0;
+            }
+        }
     }
 
     fn width_px(&self) -> u32 {
