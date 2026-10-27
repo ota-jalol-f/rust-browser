@@ -200,13 +200,15 @@ Faqat **SigPlusNET (imzo)** toza managed — eng katta xavf shu yerda.
    helper (JSON-lines,
    hello-handshake, parent-PID bog'lash — referens idbox helperidek, lekin .NET emas).
 
-### Faza 3 — JS moslik shim (drop-in uchun hal qiluvchi)
-pv-next o'zgarmay ishlashi uchun aynan shu yuza:
-- `window.chrome.webview.hostObjects.<name>.Method(...)` — **Promise qaytaruvchi**.
-- `share.RunPlugin(id, jsonPayload)` va `share.GetPlugins()` — JSON string,
-  `{"data","success","error_message"}` konverti.
-- Aniq yuzani **pv-next'ning plugin-servislaridan** olish (`isAvailable()`, versiya gate'lari) —
-  hujjatlardan emas.
+### Faza 3 — JS moslik shim (drop-in uchun hal qiluvchi) ✅ BAJARILDI
+pv-next'ning dist'i (`bridge-*.js`) **faqat** `window.chrome.webview.hostObjects.share.RunPlugin`
+va `.GetPlugins`ni (ikkalasi `await`) ishlatadi — per-plugin host-object'lar yoki `.sync` emas
+(`.sync` hitlar exceljs/vue-i18n ichida edi; metod nomlari `{method:...}` request payloadida).
+Shuning uchun shim = `hostObjects.share`ni mavjud `window.share`ga ulash (metodlar Promise
+qaytaradi, `{data,success,error_message}` string konverti). `install_async_bridge` shim'iga
+qo'shildi. **Isbot**: `tests/hostobjects.rs` — `hostObjects.share.RunPlugin('Echo','hi')` bridge'ga
+yetadi va resolve bo'ladi (`hasShare:true`, haqiqiy Ultralight JS). Endi pv-next mavjud plugin
+stekiga yeta oladi. (Per-plugin host-object'lar kerak bo'lsa keyin qo'shiladi.)
 
 ### Faza 4 — Plugin manager / yangilash
 - Manifest (id, version, entryFile, sha256, minHostVersion), SemVer, **SHA-256 tekshiruv**,

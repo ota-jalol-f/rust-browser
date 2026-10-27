@@ -308,6 +308,14 @@ pub fn install_async_bridge(view: &View, origin: Origin, pending: PendingCalls) 
              },\
              GetPlugins: function(){ return enqueue(JSON.stringify({kind:'list'})); }\
            };\
+           /* pv-next compatibility shim: it reaches plugins via\
+              window.chrome.webview.hostObjects.share.RunPlugin/GetPlugins (the\
+              reference WebView2 host-object path), so alias it to window.share.\
+              Methods return Promises, matching what pv-next `await`s. */\
+           window.chrome = window.chrome || {};\
+           window.chrome.webview = window.chrome.webview || {};\
+           window.chrome.webview.hostObjects = window.chrome.webview.hostObjects || {};\
+           window.chrome.webview.hostObjects.share = window.share;\
          })();";
     match view
         .evaluate_script(shim)
@@ -410,6 +418,55 @@ pub fn prove_async_roundtrip(request: &str) -> Result<String> {
     {
         Ok(s) => Ok(s),
         Err(js_exception) => Err(Error::Engine(format!("result read threw: {js_exception}"))),
+    }
+}
+
+/// Headless proof that pv-next's exact plugin path —
+/// `window.chrome.webview.hostObjects.share.RunPlugin(...)` — reaches the host
+/// bridge: install it, call via that path, drain + echo-resolve, and report the
+/// surface plus the resolved value as
+/// `{"hasHostObjects":bool,"hasShare":bool,"result":"..."}`.
+///
+/// # Errors
+/// [`Error::Engine`] on engine/eval failure.
+pub fn prove_hostobjects_shim() -> Result<String> {
+    let renderer = crate::headless::init_renderer()?;
+    let view = crate::headless::create_cpu_view(&renderer, 16, 16)?;
+    view.load_html("<html><body></body></html>")
+        .map_err(|e| Error::Engine(format!("load_html: {e:?}")))?;
+    crate::headless::pump_until_loaded(&renderer, &view);
+
+    let pending: PendingCalls = Arc::new(Mutex::new(Vec::new()));
+    let origin = Origin::parse("https://test.example").expect("valid test origin");
+    install_async_bridge(&view, origin, pending.clone())?;
+
+    let kickoff = "window.__r = 'PENDING';\
+        window.chrome.webview.hostObjects.share.RunPlugin('Echo', 'hi')\
+          .then(function(r){ window.__r = r; });";
+    if let Err(js) = view
+        .evaluate_script(kickoff)
+        .map_err(|e| Error::Engine(format!("hostObjects kickoff failed: {e:?}")))?
+    {
+        return Err(Error::Engine(format!("hostObjects kickoff threw: {js}")));
+    }
+    let calls = std::mem::take(&mut *pending.lock().unwrap_or_else(|p| p.into_inner()));
+    for c in calls {
+        resolve_call(&view, c.call_id, &c.request)?;
+    }
+    crate::headless::pump_until_loaded(&renderer, &view);
+
+    let probe = "JSON.stringify({\
+        hasHostObjects: !!(window.chrome && window.chrome.webview && window.chrome.webview.hostObjects),\
+        hasShare: !!(window.chrome && window.chrome.webview && window.chrome.webview.hostObjects\
+            && window.chrome.webview.hostObjects.share\
+            && typeof window.chrome.webview.hostObjects.share.RunPlugin === 'function'),\
+        result: window.__r})";
+    match view
+        .evaluate_script(probe)
+        .map_err(|e| Error::Engine(format!("hostObjects probe failed: {e:?}")))?
+    {
+        Ok(s) => Ok(s),
+        Err(js_exception) => Err(Error::Engine(format!("hostObjects probe threw: {js_exception}"))),
     }
 }
 
