@@ -33,6 +33,13 @@ use winit::window::{Window, WindowId};
 const SCROLL_LINE_PX: f32 = 48.0;
 /// Target frame interval (~60 fps).
 const FRAME: Duration = Duration::from_millis(16);
+/// After a modal overlay opens, its activation input (clicks, key presses) is
+/// ignored for this long — defeats click/keystroke hijacking of a freshly-shown
+/// dialog. Esc (cancel) is always allowed.
+const OVERLAY_INPUT_GRACE: Duration = Duration::from_millis(400);
+/// After a modal overlay closes, a page is blocked from re-opening one for this
+/// long — defeats a cancel→re-open lockout loop.
+const OVERLAY_REOPEN_COOLDOWN: Duration = Duration::from_millis(500);
 
 use crate::browser::normalize_url;
 use crate::chrome::{BAR_HEIGHT, CHROME_HTML};
@@ -96,6 +103,9 @@ struct Overlay {
     messages: UiMessages,
     /// Whether the UI bridge has been installed (after the overlay page loads).
     installed: bool,
+    /// Before this instant, activation input to the overlay is ignored (grace
+    /// period against click/keystroke hijacking right as it appears).
+    interactive_at: Instant,
     /// The originating call to resolve when the overlay closes, and the document
     /// identity it belongs to (so a navigated-away caller never gets a result).
     tab: usize,
@@ -206,6 +216,7 @@ pub fn run(config: &BrowserConfig, home_html: String) -> Result<()> {
         registry: crate::plugins::builtin_registry(),
         active_streams: Vec::new(),
         overlay: None,
+        overlay_cooldown_until: Instant::now(),
         home_origin: Origin::parse(BUILTIN_ORIGIN).expect("valid"),
         chrome_installed: false,
         needs_tab_sync: true,
@@ -237,6 +248,8 @@ struct App {
     active_streams: Vec<ActiveStream>,
     /// The open modal plugin overlay, if any (`share.RunPluginUi`).
     overlay: Option<Overlay>,
+    /// A page cannot open a new overlay before this instant (re-open cooldown).
+    overlay_cooldown_until: Instant,
     home_origin: Origin,
     /// Whether the chrome's nav bridge has been installed (chrome loads once).
     chrome_installed: bool,
@@ -384,7 +397,10 @@ impl ApplicationHandler for App {
                     let (x, y) = (self.cursor.x as i32, self.cursor.y as i32);
                     let pressed = state == ElementState::Pressed;
                     if let Some(ov) = &self.overlay {
-                        ov.view.mouse_button(x, y, pressed);
+                        // Ignore clicks during the grace period (anti-click-hijack).
+                        if Instant::now() >= ov.interactive_at {
+                            ov.view.mouse_button(x, y, pressed);
+                        }
                     } else if y < self.bar_h as i32 {
                         self.focus = Focus::Chrome;
                         if let Some(c) = &self.chrome {
@@ -405,23 +421,25 @@ impl ApplicationHandler for App {
                     let pressed = event.state == ElementState::Pressed;
                     if pressed {
                         if let Key::Named(NamedKey::Escape) = event.logical_key {
-                            let r = self.overlay.as_mut().map(|ov| ov.plugin.on_close());
-                            if let Some(result) = r {
-                                self.close_overlay(Some(result));
-                            }
+                            self.force_close_overlay();
                             return;
                         }
                     }
-                    if let Some(ov) = &self.overlay {
-                        if let Key::Named(named) = &event.logical_key {
-                            if let Some(sk) = map_named_key(named) {
-                                ov.view.key_special(sk, pressed);
+                    // Activation keys are ignored during the open grace period.
+                    let interactive =
+                        self.overlay.as_ref().is_some_and(|ov| Instant::now() >= ov.interactive_at);
+                    if interactive {
+                        if let Some(ov) = &self.overlay {
+                            if let Key::Named(named) = &event.logical_key {
+                                if let Some(sk) = map_named_key(named) {
+                                    ov.view.key_special(sk, pressed);
+                                }
                             }
-                        }
-                        if pressed {
-                            if let Some(text) = event.text.as_ref() {
-                                if !text.chars().all(char::is_control) {
-                                    ov.view.key_char(text);
+                            if pressed {
+                                if let Some(text) = event.text.as_ref() {
+                                    if !text.chars().all(char::is_control) {
+                                        ov.view.key_char(text);
+                                    }
                                 }
                             }
                         }
@@ -585,6 +603,8 @@ impl App {
                     if i < self.tabs.len() {
                         self.active = i;
                         self.needs_tab_sync = true;
+                        // A modal belongs to its tab; switching away closes it.
+                        self.force_close_overlay();
                     }
                 }
             } else if let Some(rest) = cmd.strip_prefix("closetab ") {
@@ -702,11 +722,22 @@ impl App {
                 // A modal UI call opens an overlay; a streaming call starts a
                 // long-running polled operation; everything else resolves one-shot.
                 if let Some((id, req)) = parse_ui_run(&c.request) {
-                    if self.overlay.is_some() {
+                    // A modal overlay opens only for the ACTIVE tab, only when none
+                    // is open, and not within the re-open cooldown — so a page can't
+                    // spawn a background-tab modal or loop a lockout dialog.
+                    let refusal = if self.overlay.is_some() {
+                        Some("a plugin window is already open")
+                    } else if i != self.active {
+                        Some("plugin windows open only in the active tab")
+                    } else if Instant::now() < self.overlay_cooldown_until {
+                        Some("please wait before opening another plugin window")
+                    } else {
+                        None
+                    };
+                    if let Some(msg) = refusal {
                         if let Some(tab) = self.tabs.get(i) {
-                            let busy =
-                                PluginResult::fail("a plugin window is already open").to_json();
-                            let _ = resolve_call(tab.view.view(), c.call_id, &busy);
+                            let _ =
+                                resolve_call(tab.view.view(), c.call_id, &PluginResult::fail(msg).to_json());
                         }
                     } else {
                         match self.registry.dispatch_ui(&id, &req) {
@@ -815,6 +846,7 @@ impl App {
             plugin: ui,
             messages: Arc::new(Mutex::new(Vec::new())),
             installed: false,
+            interactive_at: Instant::now() + OVERLAY_INPUT_GRACE,
             tab,
             call_id,
             origin,
@@ -880,7 +912,7 @@ impl App {
     }
 
     /// Close the overlay, delivering `deliver` to the originating call only if that
-    /// document is still the one that opened it.
+    /// document is still the one that opened it. Starts the re-open cooldown.
     fn close_overlay(&mut self, deliver: Option<PluginResult>) {
         let Some(ov) = self.overlay.take() else {
             return;
@@ -893,6 +925,15 @@ impl App {
                     let _ = resolve_call(tab.view.view(), ov.call_id, &result.to_json());
                 }
             }
+        }
+        self.overlay_cooldown_until = Instant::now() + OVERLAY_REOPEN_COOLDOWN;
+    }
+
+    /// Force-close the overlay (Esc, tab switch): deliver its `on_close` result.
+    fn force_close_overlay(&mut self) {
+        let result = self.overlay.as_mut().map(|ov| ov.plugin.on_close());
+        if let Some(result) = result {
+            self.close_overlay(Some(result));
         }
     }
 
