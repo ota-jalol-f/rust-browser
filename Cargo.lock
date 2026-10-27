@@ -1991,6 +1991,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "sentinel-ipc-pipe"
+version = "0.1.0"
+dependencies = [
+ "sentinel-core",
+ "sentinel-ipc",
+ "windows-sys 0.61.2",
+]
+
+[[package]]
 name = "sentinel-permissions"
 version = "0.1.0"
 dependencies = [

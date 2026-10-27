@@ -14,6 +14,7 @@ members = [
     "crates/sentinel-test-plugin",
     "crates/sentinel-hosts",
     "crates/sentinel-plugin",
+    "crates/sentinel-ipc-pipe",
 ]
 
 [workspace.package]

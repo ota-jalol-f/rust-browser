@@ -190,7 +190,14 @@ Faqat **SigPlusNET (imzo)** toza managed — eng katta xavf shu yerda.
    chaqirgan tab'da resolve bo'ladi (cross-tab leak yo'q); (c) navigatsiyada faol tab navbati
    tozalanadi. (Qoldiq hardening: per-document nonce — keyin.) Avtomatik review 2 topilmasi shu
    tarzda yopildi.
-4. **`sentinel-ipc` named-pipe transport**: x86 vendor SDK'lar uchun kichik Rust helper (JSON-lines,
+4. **`sentinel-ipc` transport + named-pipe helper** ✅ BAJARILDI (uchdan-uchga test): `transport`
+   moduli — sync `serve`/`Client` generik `Read+Write` ustida (length-delimited framing);
+   `sentinel-ipc-pipe` krati — Windows named-pipe binding (windows-sys FFI: `PipeStream`/
+   `PipeListener`/`connect`) + `spawn_helper` (host pipe yaratadi, helper exe'ni `--pipe` bilan
+   spawn qiladi, ulangan `Client` qaytaradi) + `sentinel-ipc-helper` bin (ulanadi va `serve`
+   ishlatadi). Byte duplex pipe (stdio emas — vendor SDK'lar stdout'ni ifloslaydi). Haqiqiy x86
+   uchun `--target i686-pc-windows-msvc`. (Eski reja matni: x86 vendor SDK'lar uchun kichik Rust
+   helper (JSON-lines,
    hello-handshake, parent-PID bog'lash — referens idbox helperidek, lekin .NET emas).
 
 ### Faza 3 — JS moslik shim (drop-in uchun hal qiluvchi)
