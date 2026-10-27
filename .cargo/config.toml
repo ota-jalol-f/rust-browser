@@ -1,0 +1,21 @@
+# Windows 7 build support.
+#
+# Windows 7 is a HARD target requirement for this browser, but Rust's default
+# stable `x86_64-pc-windows-msvc` target has required Windows 10+ since Rust 1.78.
+# Windows 7 needs the tier-3 `*-win7-windows-msvc` targets, which ship no prebuilt
+# std, so they are built from source with `-Zbuild-std` on nightly.
+#
+# One-time setup:
+#   rustup toolchain install nightly --component rust-src
+#
+# Build the GUI browser for Windows 7 (x64):
+#   cargo +nightly win7
+#
+# Build the x86 chip helper for Windows 7 (ElyMRTD.dll is x86-only):
+#   cargo +nightly win7-helper
+#
+# Host-arch dev builds/tests still use stable as before (`cargo build`,
+# `cargo test`) — these aliases are the only things that pull in nightly/build-std.
+[alias]
+win7 = "build -p sentinel-shell --features ultralight --target x86_64-win7-windows-msvc -Zbuild-std"
+win7-helper = "build -p sentinel-ipc-pipe --bin sentinel-ipc-helper --target i686-win7-windows-msvc -Zbuild-std"

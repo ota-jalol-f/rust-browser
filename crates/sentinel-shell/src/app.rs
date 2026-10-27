@@ -197,16 +197,24 @@ fn tab_title(view: &PageView) -> String {
 pub fn run(config: &BrowserConfig, home_html: String) -> Result<()> {
     let event_loop =
         EventLoop::new().map_err(|e| Error::Engine(format!("winit event loop: {e}")))?;
-    // Parse the managed allowlist (trusted first-party origins) once; invalid
-    // entries are skipped with a log line rather than failing startup.
+    // Parse the managed allowlist (trusted first-party origins) once. Only https
+    // (or loopback http, for local dist testing) origins are accepted — a plaintext
+    // remote origin is a trivial downgrade/MITM target for a plugin grant. Rejected
+    // or unparseable entries are skipped with a log line rather than failing startup.
     let trusted_origins: Vec<Origin> = config
         .trusted_origins
         .iter()
-        .filter_map(|s| match Origin::parse(s) {
-            Ok(o) => Some(o),
-            Err(_) => {
-                eprintln!("[allowlist] skipping invalid trusted origin: {s}");
-                None
+        .filter_map(|s| {
+            if !is_trusted_origin_scheme(s) {
+                eprintln!("[allowlist] refusing trusted origin (https or loopback http only): {s}");
+                return None;
+            }
+            match Origin::parse(s) {
+                Ok(o) => Some(o),
+                Err(_) => {
+                    eprintln!("[allowlist] skipping invalid trusted origin: {s}");
+                    None
+                }
             }
         })
         .collect();
@@ -346,12 +354,14 @@ impl ApplicationHandler for App {
             for cap in Capability::ALL {
                 g.broker_mut().set(&home_origin, cap, PermissionState::Granted);
             }
-            // Managed allowlist: the trusted first-party origins (pasport-viza.uz)
-            // get the same full grant, so pv-next's plugin/device calls are permitted.
+            // Managed allowlist: trusted first-party origins (pasport-viza.uz) get
+            // ONLY Capability::Plugin — enough to call plugins via share /
+            // hostObjects. They do NOT get Dll/Usb/Serial: a remote web page must
+            // never load native DLLs or open raw devices (that would be RCE). The
+            // plugins themselves reach the smart-card reader, serial ports and
+            // vendor DLLs host-side, which is not gated by the page's origin.
             for origin in &self.trusted_origins {
-                for cap in Capability::ALL {
-                    g.broker_mut().set(origin, cap, PermissionState::Granted);
-                }
+                g.broker_mut().set(origin, Capability::Plugin, PermissionState::Granted);
             }
         }
         let _ = content.load_html(&self.home_html);
@@ -1064,8 +1074,42 @@ fn map_named_key(named: &NamedKey) -> Option<SpecialKey> {
     })
 }
 
+/// Whether a configured trusted-origin string is allowed to carry a plugin grant:
+/// `https://…`, or `http://` only for loopback (localhost / 127.0.0.1 / [::1]) so a
+/// locally-served dist can be tested. A plaintext remote origin is refused — a
+/// network attacker could otherwise impersonate it and inherit the grant.
+fn is_trusted_origin_scheme(s: &str) -> bool {
+    let s = s.trim();
+    if let Some(rest) = s.strip_prefix("https://") {
+        return !rest.is_empty();
+    }
+    if let Some(rest) = s.strip_prefix("http://") {
+        let host = rest.split(['/', ':']).next().unwrap_or("");
+        return host == "localhost" || host == "127.0.0.1" || host == "[::1]" || host == "::1";
+    }
+    false
+}
+
 /// Log an init failure and exit the loop.
 fn fail(event_loop: &ActiveEventLoop, msg: String) {
     eprintln!("sentinel: {msg}");
     event_loop.exit();
+}
+
+#[cfg(test)]
+mod tests {
+    use super::is_trusted_origin_scheme;
+
+    #[test]
+    fn trusted_origin_scheme_allows_https_and_loopback_http_only() {
+        assert!(is_trusted_origin_scheme("https://pasport-viza.uz"));
+        assert!(is_trusted_origin_scheme("http://localhost:8080"));
+        assert!(is_trusted_origin_scheme("http://127.0.0.1:3000"));
+        // Plaintext remote origins and other schemes are refused.
+        assert!(!is_trusted_origin_scheme("http://pasport-viza.uz"));
+        assert!(!is_trusted_origin_scheme("http://evil.example"));
+        assert!(!is_trusted_origin_scheme("file:///etc/passwd"));
+        assert!(!is_trusted_origin_scheme("https://"));
+        assert!(!is_trusted_origin_scheme(""));
+    }
 }

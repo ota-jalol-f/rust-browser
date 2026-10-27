@@ -24,16 +24,18 @@ pub struct BrowserConfig {
     /// when the platform lacks a usable GPU path (e.g. Windows 7 without the
     /// D3D11 platform update), the engine falls back to the CPU renderer.
     pub enable_gpu: bool,
-    /// First-party origins trusted to use plugins and devices without a prompt —
-    /// the "managed allowlist". Each is granted every [`crate::` capability] at
-    /// startup, like the built-in home page. This is how the real ASBT front-end
-    /// (`https://pasport-viza.uz`) reaches the hardware plugins (`share` /
-    /// `hostObjects.<plugin>`): without it the per-origin permission gate answers
-    /// `Ask` and every plugin call is refused, so the page sees no plugins.
+    /// First-party origins trusted to use plugins without a prompt — the "managed
+    /// allowlist". Each is granted the **plugin** capability at startup (and only
+    /// that — never direct DLL/USB/serial access, which would let a web page load
+    /// native code). This is how the real ASBT front-end (`https://pasport-viza.uz`)
+    /// reaches the hardware plugins (`share` / `hostObjects.<plugin>`): without it
+    /// the per-origin permission gate answers `Ask` and every plugin call is
+    /// refused, so the page sees no plugins. The plugins themselves reach the
+    /// smart-card reader, serial ports and vendor DLLs host-side.
     ///
     /// Each entry must be a scheme+host(+port) origin (e.g. `https://pasport-viza.uz`),
-    /// NOT a path. Keep this list tight — every origin here can drive the user's
-    /// smart-card reader, serial ports and native DLLs.
+    /// NOT a path, and must be `https` (or loopback `http` for local dist testing);
+    /// plaintext remote origins are refused. Keep this list tight.
     pub trusted_origins: Vec<String>,
 }
 
