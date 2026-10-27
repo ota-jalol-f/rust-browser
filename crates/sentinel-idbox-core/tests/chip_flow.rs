@@ -1,159 +1,17 @@
 //! `ChipReadJob` + `ChipCompletion` against fake SDKs — the Rust counterparts of
 //! `ChipReadJobTests` and `ChipCompletionTests`.
 
+mod common;
+
 use std::collections::HashMap;
 
-use sentinel_idbox_core::chip::{ChipReadJob, ElyMrtd, PhotoDecoder};
+use common::{FakeDecoder, FakeEly, INFO, READER, TD1, TD3};
+use sentinel_idbox_core::chip::ChipReadJob;
 use sentinel_idbox_core::completion::{complete, CompletionError, IdBoxIcon, IconState, Outcome, View};
 use sentinel_idbox_core::mrz::MrzLines;
 use sentinel_idbox_core::protocol::{HelperMessage, MessageType};
 use sentinel_idbox_core::reader_result::{MrzError, ReaderResultBuilder};
 use sentinel_idbox_core::texts;
-
-const READER: &str = "ELYCTIS CL reader 0123456789ABCDEF 0";
-const INFO: &str = "AA1234567890010113001019";
-const TD3: &str = "P<UZBTOSHMATOV<<ALISHER<<<<<<<<<<<<<<<<<<<<<\r\nAA12345678UZB9001011M30010193123456789012324\r\n";
-const TD1: &str = "IDUZBAD1234567741508850123456<\r\n8508155F3208140UZB<<<<<<<<<<<6\r\nRASULOVA<<MALIKA<<<<<<<<<<<<<<\r\n";
-
-// ---- fakes --------------------------------------------------------------------------
-
-struct FakeEly {
-    calls: Vec<String>,
-    connect_result: i32,
-    connect_throws: Option<String>,
-    antenna: Vec<u8>,
-    antenna_throws: Option<String>,
-    bac: bool,
-    dg1_result: i32,
-    dg2_result: i32,
-    dg6_result: i32,
-    photo: Option<Vec<u8>>,
-    categories: Option<Vec<String>>,
-    disconnect_throws: Option<String>,
-}
-
-impl Default for FakeEly {
-    fn default() -> Self {
-        FakeEly {
-            calls: Vec::new(),
-            connect_result: 0,
-            connect_throws: None,
-            antenna: vec![0],
-            antenna_throws: None,
-            bac: true,
-            dg1_result: 0,
-            dg2_result: 0,
-            dg6_result: 0,
-            photo: Some(vec![0xFF, 0xD8, 0xFF, 0xD9]),
-            categories: Some(Vec::new()),
-            disconnect_throws: None,
-        }
-    }
-}
-
-impl ElyMrtd for FakeEly {
-    fn connect(&mut self, reader_name: &str) -> Result<i32, String> {
-        self.calls.push(format!("connect:{reader_name}"));
-        match &self.connect_throws {
-            Some(e) => Err(e.clone()),
-            None => Ok(self.connect_result),
-        }
-    }
-    fn get_select_antenna(&mut self) -> Result<Vec<u8>, String> {
-        self.calls.push("getSelectAntenna".into());
-        match &self.antenna_throws {
-            Some(e) => Err(e.clone()),
-            None => Ok(self.antenna.clone()),
-        }
-    }
-    fn establish_bac(&mut self, mrz_info: &str) -> Result<bool, String> {
-        self.calls.push(format!("establishBAC:{mrz_info}"));
-        Ok(self.bac)
-    }
-    fn read_dg1(&mut self) -> Result<i32, String> {
-        self.calls.push("readDG1".into());
-        Ok(self.dg1_result)
-    }
-    fn read_dg2(&mut self) -> Result<i32, String> {
-        self.calls.push("readDG2".into());
-        Ok(self.dg2_result)
-    }
-    fn read_dg6(&mut self) -> Result<i32, String> {
-        self.calls.push("readDG6".into());
-        Ok(self.dg6_result)
-    }
-    fn get_name(&mut self) -> String { "ALISHER".into() }
-    fn get_surname(&mut self) -> String { "TOSHMATOV".into() }
-    fn get_birth_date(&mut self) -> String { "01/01/90".into() }
-    fn get_nationality(&mut self) -> String { "UZB".into() }
-    fn get_issuing_state(&mut self) -> String { "UZB".into() }
-    fn get_country_name(&mut self, code: &str) -> String {
-        if code == "UZB" { "Uzbekistan".into() } else { code.into() }
-    }
-    fn get_sex(&mut self) -> String { "M".into() }
-    fn get_validity_date(&mut self) -> String { "01/01/30".into() }
-    fn get_doc_num(&mut self) -> String { "AA1234567".into() }
-    fn get_document_type(&mut self) -> String { "P".into() }
-    fn get_optional_data(&mut self) -> String { "31234567890123".into() }
-    fn get_family_name(&mut self) -> String { "TOSHMATOV".into() }
-    fn get_given_names(&mut self) -> String { "ALISHER".into() }
-    fn get_expiry_date(&mut self) -> String { "01/01/30".into() }
-    fn get_issuing_date(&mut self) -> String { "01/01/20".into() }
-    fn get_issuing_authority(&mut self) -> String { "IIV".into() }
-    fn get_issuing_country(&mut self) -> String { "UZB".into() }
-    fn get_licence_number(&mut self) -> String { "AF1234567".into() }
-    fn get_categories(&mut self) -> Result<Option<Vec<String>>, String> {
-        Ok(self.categories.clone())
-    }
-    fn get_photo(&mut self) -> Result<Option<Vec<u8>>, String> {
-        self.calls.push("getPhoto".into());
-        Ok(self.photo.clone())
-    }
-    fn disconnect(&mut self) -> Result<(), String> {
-        self.calls.push("disconnect".into());
-        match &self.disconnect_throws {
-            Some(e) => Err(e.clone()),
-            None => Ok(()),
-        }
-    }
-}
-
-#[derive(Default)]
-struct FakeDecoder {
-    decode_fails: bool,
-    encode_fails: bool,
-}
-
-impl PhotoDecoder for FakeDecoder {
-    fn decode(&self, photo: &[u8]) -> Option<Vec<u8>> {
-        if self.decode_fails {
-            None
-        } else {
-            Some(photo.to_vec())
-        }
-    }
-    fn to_jpeg_base64(&self, decoded: &[u8]) -> Option<String> {
-        if self.encode_fails {
-            None
-        } else {
-            Some(base64(decoded))
-        }
-    }
-}
-
-fn base64(data: &[u8]) -> String {
-    const T: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-    let mut out = String::new();
-    for chunk in data.chunks(3) {
-        let b = [chunk[0], *chunk.get(1).unwrap_or(&0), *chunk.get(2).unwrap_or(&0)];
-        let n = (b[0] as u32) << 16 | (b[1] as u32) << 8 | b[2] as u32;
-        out.push(T[(n >> 18 & 63) as usize] as char);
-        out.push(T[(n >> 12 & 63) as usize] as char);
-        out.push(if chunk.len() > 1 { T[(n >> 6 & 63) as usize] as char } else { '=' });
-        out.push(if chunk.len() > 2 { T[(n & 63) as usize] as char } else { '=' });
-    }
-    out
-}
 
 struct Ran {
     result: HelperMessage,
