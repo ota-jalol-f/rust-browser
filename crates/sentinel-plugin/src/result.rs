@@ -1,7 +1,7 @@
 //! [`PluginResult`]: the `{data, success, error_message}` envelope every plugin
 //! call returns.
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 /// The result envelope every plugin call returns, matching the reference
 /// browser's `MyBrowser.Abstractions.PluginResult` byte-for-byte: fields
@@ -12,7 +12,7 @@ use serde::Serialize;
 /// - [`PluginResult::cancel`] — the user dismissed a modal window; `success`
 ///   is `false` and `error_message` is empty.
 /// - [`PluginResult::fail`] — an error; `error_message` describes it.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PluginResult {
     /// The payload on success (often itself a JSON string), else empty.
     pub data: String,

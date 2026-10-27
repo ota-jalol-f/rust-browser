@@ -2038,6 +2038,7 @@ dependencies = [
  "sentinel-engine",
  "sentinel-hosts",
  "sentinel-ipc",
+ "sentinel-ipc-pipe",
  "sentinel-permissions",
  "sentinel-plugin",
  "serde_json",
