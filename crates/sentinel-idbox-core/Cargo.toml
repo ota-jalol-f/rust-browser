@@ -1,0 +1,16 @@
+[package]
+name = "sentinel-idbox-core"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+
+# Pure, device-free logic of the Elyctis ID BOX reader, shared by the x64 plugin
+# (`sentinel-idbox`) and the x86/i686 chip helper. A faithful port of the reference
+# `Asbt.IdBox.Plugin` + `Asbt.IdBox.ChipHelper` (MRZ parsing, the Ely checksum, the
+# ReaderResult/CMRZ builder, the Answere JSON, the helper wire protocol, and the
+# ChipReadJob read flow). No hardware, no FFI, no OS deps — so both targets and
+# every host can build and test it. Pinned byte-for-byte against the C# originals
+# by tests/fixtures/reference.json (the same fixture the C# tests use).
+[dependencies]
+serde = { workspace = true }
+serde_json = "1"
