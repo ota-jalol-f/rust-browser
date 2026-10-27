@@ -22,6 +22,9 @@
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
 
+pub mod serial;
+pub mod session;
+
 use sentinel_plugin::{HostMethod, Plugin, PluginDescriptor, PluginKind, PluginResult};
 
 /// The idbox reader plugin.

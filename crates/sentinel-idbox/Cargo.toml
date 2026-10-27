@@ -14,6 +14,7 @@ default = []
 
 [dependencies]
 sentinel-plugin = { path = "../sentinel-plugin" }
+sentinel-idbox-core = { path = "../sentinel-idbox-core" }
 serde_json = "1"
 
 # ReadChipUid talks to the OS smart-card service (winscard) over PC/SC — standard,
