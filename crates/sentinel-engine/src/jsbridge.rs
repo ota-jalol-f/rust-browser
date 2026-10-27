@@ -523,6 +523,31 @@ pub fn push_ui_update(view: &View, update_json: &str) -> Result<()> {
     }
 }
 
+/// Headless JS-execution speed probe: time a 50M-iteration integer loop with
+/// `Date.now()`. Tens of ms indicates a JIT; hundreds/thousands of ms indicate an
+/// interpreter-only JavaScriptCore. Settles whether Ultralight's JS can run a
+/// heavy SPA at interactive speed, rather than inferring it from WASM absence.
+///
+/// # Errors
+/// [`Error::Engine`] on engine/eval failure.
+pub fn prove_js_speed() -> Result<String> {
+    let renderer = crate::headless::init_renderer()?;
+    let view = crate::headless::create_cpu_view(&renderer, 16, 16)?;
+    view.load_html("<html><body></body></html>")
+        .map_err(|e| Error::Engine(format!("load_html: {e:?}")))?;
+    crate::headless::pump_until_loaded(&renderer, &view);
+    let js = "(function(){var t=Date.now();var s=0;\
+        for(var i=0;i<50000000;i++){s+=i;}\
+        return JSON.stringify({loopMs:Date.now()-t,checksum:s});})()";
+    match view
+        .evaluate_script(js)
+        .map_err(|e| Error::Engine(format!("speed eval failed: {e:?}")))?
+    {
+        Ok(s) => Ok(s),
+        Err(js_exception) => Err(Error::Engine(format!("speed threw: {js_exception}"))),
+    }
+}
+
 /// Headless proof of the overlay UI bridge and input capture: load a page with a
 /// positioned button, install the bridge, push a host→overlay update, then
 /// synthesize a click at the button's centre and confirm the overlay→host message

@@ -881,11 +881,12 @@ impl App {
             None => return,
         };
         if !guard_ok {
-            // Force-close without delivering: the caller's Promise is gone.
+            // Force-close without delivering (the caller's Promise is gone), but
+            // through the shared close path so the re-open cooldown is still set.
             if let Some(ov) = self.overlay.as_mut() {
                 let _ = ov.plugin.on_close();
             }
-            self.overlay = None;
+            self.close_overlay(None);
             return;
         }
         // Overlay -> op messages.
