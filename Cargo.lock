@@ -2023,7 +2023,6 @@ name = "sentinel-ipc-pipe"
 version = "0.1.0"
 dependencies = [
  "sentinel-core",
- "sentinel-idbox",
  "sentinel-ipc",
  "sentinel-plugin",
  "windows-sys 0.61.2",

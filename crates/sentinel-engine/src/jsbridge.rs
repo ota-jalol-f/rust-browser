@@ -621,19 +621,38 @@ pub fn prove_idbox_hostobject() -> Result<String> {
     }
 
     // Settle whatever the flow enqueues, pumping microtasks between rounds so the
-    // next await (GetPlugins → then ReadChipUid) can run. A few rounds suffice.
+    // next await (GetPlugins → then ReadChipUid) can run. The reply is CONDITIONAL
+    // on exactly what the generated host-object wrapper produced: a `list` call gets
+    // the descriptor array; a `run` call gets the UID envelope ONLY if it carries
+    // id "Asbt.IdBox", inner method "ReadChipUid" and ui=false — a wrong id/method/
+    // ui would get a failure and the UID assertion would catch it.
     for _ in 0..6 {
         let calls = std::mem::take(&mut *pending.lock().unwrap_or_else(|p| p.into_inner()));
         for call in calls {
-            let kind: Option<String> = serde_json::from_str::<serde_json::Value>(&call.request)
-                .ok()
-                .and_then(|v| v.get("kind").and_then(|k| k.as_str()).map(String::from));
-            let reply = match kind.as_deref() {
+            let v: serde_json::Value =
+                serde_json::from_str(&call.request).unwrap_or(serde_json::Value::Null);
+            let fail = r#"{"data":"","success":false,"error_message":"unexpected host-object call"}"#;
+            let reply = match v.get("kind").and_then(|k| k.as_str()) {
                 Some("list") => {
                     r#"[{"id":"Asbt.IdBox","name":"idbox","version":"1.0.0","kind":"ui"}]"#.to_string()
                 }
-                // Any run call here is ReadChipUid: reply with the PluginResult envelope.
-                _ => r#"{"data":"04a1b2c3d4e5f6","success":true,"error_message":""}"#.to_string(),
+                Some("run") => {
+                    let id = v.get("id").and_then(|x| x.as_str()).unwrap_or("");
+                    let ui = v.get("ui").and_then(|x| x.as_bool()).unwrap_or(true);
+                    // The inner request the wrapper built: {"method":"ReadChipUid","args":[]}.
+                    let inner: serde_json::Value = v
+                        .get("request")
+                        .and_then(|x| x.as_str())
+                        .and_then(|s| serde_json::from_str(s).ok())
+                        .unwrap_or(serde_json::Value::Null);
+                    let method = inner.get("method").and_then(|m| m.as_str()).unwrap_or("");
+                    if id == "Asbt.IdBox" && method == "ReadChipUid" && !ui {
+                        r#"{"data":"04a1b2c3d4e5f6","success":true,"error_message":""}"#.to_string()
+                    } else {
+                        fail.to_string()
+                    }
+                }
+                _ => fail.to_string(),
             };
             resolve_call(&view, call.call_id, &reply)?;
         }

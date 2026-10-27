@@ -1,11 +1,34 @@
 //! The out-of-process IPC helper executable: connects to the host's named pipe
 //! and serves requests until the pipe closes. It hosts a [`PluginRegistry`] and
 //! answers `Request::Plugin` by dispatching to it — this is where an x86-only
-//! vendor-SDK plugin (e.g. the idbox Elyctis chip reader) runs, isolated from the
-//! x64 browser. Build for x86 with `--target i686-pc-windows-msvc`.
+//! vendor-SDK plugin runs, isolated from the x64 browser. Its first real tenant
+//! will be the idbox `ReadDocument` chip-read step (`ElyMRTD.dll`, x86-only); the
+//! idbox plugin itself now runs in-process (its `ReadChipUid` is x64 PC/SC). Until
+//! that chip plugin lands, the helper hosts a trivial echo plugin so the transport
+//! is exercised. Build for x86 with `--target i686-pc-windows-msvc`.
 
 use sentinel_ipc::{Request, RequestExecutor, Response};
-use sentinel_plugin::PluginRegistry;
+use sentinel_plugin::{Plugin, PluginDescriptor, PluginKind, PluginRegistry, PluginResult};
+
+/// A placeholder plugin that echoes its request as `data` — stands in for the
+/// x86-only chip-read plugin until it is implemented, so the pipe passthrough is
+/// testable.
+struct EchoPlugin;
+
+impl Plugin for EchoPlugin {
+    fn descriptor(&self) -> PluginDescriptor {
+        PluginDescriptor {
+            id: "Test.Echo".to_string(),
+            name: "echo".to_string(),
+            version: "1.0.0".to_string(),
+            kind: PluginKind::Extension,
+        }
+    }
+
+    fn execute(&mut self, request: &str) -> PluginResult {
+        PluginResult::ok(request)
+    }
+}
 
 /// The helper's executor: plugin passthrough plus a couple of trivial device
 /// enumerations (stubbed) that the transport round-trip test exercises.
@@ -16,8 +39,7 @@ struct HelperExecutor {
 impl HelperExecutor {
     fn new() -> Self {
         let mut registry = PluginRegistry::new();
-        // The idbox chip reader (fake device until the ElyMRTD FFI lands).
-        let _ = registry.register(Box::new(sentinel_idbox::IdBoxPlugin::new()));
+        let _ = registry.register(Box::new(EchoPlugin));
         HelperExecutor { registry }
     }
 }
