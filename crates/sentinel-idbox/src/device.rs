@@ -7,7 +7,7 @@
 
 use std::io::{Read, Write};
 use std::process::{Child, Command, Stdio};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use interprocess::local_socket::prelude::*;
 use interprocess::local_socket::{GenericNamespaced, ListenerOptions, Stream as LocalStream, ToNsName};
@@ -128,6 +128,20 @@ impl SerialPort for RealSerialPort {
             let _ = p.write_all(data);
         }
     }
+}
+
+/// A 128-bit unpredictable hex token for the pipe name, seeded from the OS CSPRNG via
+/// `RandomState` (its SipHash keys are drawn from the platform secure RNG), so no extra
+/// dependency is needed.
+fn random_token() -> String {
+    use std::hash::{BuildHasher, Hasher};
+    let mut token = String::with_capacity(32);
+    for _ in 0..2 {
+        let mut hasher = std::collections::hash_map::RandomState::new().build_hasher();
+        hasher.write_u64(std::process::id() as u64);
+        token.push_str(&format!("{:016x}", hasher.finish()));
+    }
+    token
 }
 
 fn available_port_names() -> Vec<String> {
@@ -270,11 +284,15 @@ impl HelperChipReader {
             return Err(format!("chip helper not found: {}", exe.display()));
         }
 
-        let pipe_name = format!(
-            "{PIPE_PREFIX}{}-{}",
-            std::process::id(),
-            Instant::now().elapsed().as_nanos() ^ (std::ptr::addr_of!(self) as usize as u128)
-        );
+        // Unpredictable name so a same-user process cannot guess it to squat the name or
+        // connect to our listener (the chip read carries passport data). `create_sync`
+        // fails if the name already exists, which rejects a squatter that somehow won the
+        // race. Windows' default pipe DACL already restricts access to this user +
+        // admins (not world). Residual hardening that needs raw winapi (this crate is
+        // `#![forbid(unsafe_code)]`, so it is a tracked follow-up): an explicit
+        // current-user-SID DACL, FILE_FLAG_FIRST_PIPE_INSTANCE, and verifying the client
+        // PID with GetNamedPipeClientProcessId after accept.
+        let pipe_name = format!("{PIPE_PREFIX}{}", random_token());
         let ns = pipe_name.clone().to_ns_name::<GenericNamespaced>().map_err(|e| e.to_string())?;
         let listener = ListenerOptions::new().name(ns).create_sync().map_err(|e| e.to_string())?;
 
