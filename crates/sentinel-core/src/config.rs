@@ -24,6 +24,17 @@ pub struct BrowserConfig {
     /// when the platform lacks a usable GPU path (e.g. Windows 7 without the
     /// D3D11 platform update), the engine falls back to the CPU renderer.
     pub enable_gpu: bool,
+    /// First-party origins trusted to use plugins and devices without a prompt —
+    /// the "managed allowlist". Each is granted every [`crate::` capability] at
+    /// startup, like the built-in home page. This is how the real ASBT front-end
+    /// (`https://pasport-viza.uz`) reaches the hardware plugins (`share` /
+    /// `hostObjects.<plugin>`): without it the per-origin permission gate answers
+    /// `Ask` and every plugin call is refused, so the page sees no plugins.
+    ///
+    /// Each entry must be a scheme+host(+port) origin (e.g. `https://pasport-viza.uz`),
+    /// NOT a path. Keep this list tight — every origin here can drive the user's
+    /// smart-card reader, serial ports and native DLLs.
+    pub trusted_origins: Vec<String>,
 }
 
 impl Default for BrowserConfig {
@@ -33,6 +44,9 @@ impl Default for BrowserConfig {
             window_width: 1280,
             window_height: 800,
             enable_gpu: true,
+            // The ASBT front-end. Add a locally-served dist origin here when testing
+            // the bundled dist over http.
+            trusted_origins: vec!["https://pasport-viza.uz".into()],
         }
     }
 }
@@ -61,6 +75,16 @@ mod tests {
     #[test]
     fn default_config_is_valid() {
         assert!(BrowserConfig::default().validate().is_ok());
+    }
+
+    #[test]
+    fn default_trusts_the_asbt_front_end() {
+        // The managed allowlist ships with the real ASBT origin so pv-next's plugins
+        // work out of the box; losing this silently disables every plugin for it.
+        assert!(BrowserConfig::default()
+            .trusted_origins
+            .iter()
+            .any(|o| o == "https://pasport-viza.uz"));
     }
 
     #[test]

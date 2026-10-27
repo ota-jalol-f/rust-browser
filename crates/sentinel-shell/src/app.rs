@@ -197,10 +197,24 @@ fn tab_title(view: &PageView) -> String {
 pub fn run(config: &BrowserConfig, home_html: String) -> Result<()> {
     let event_loop =
         EventLoop::new().map_err(|e| Error::Engine(format!("winit event loop: {e}")))?;
+    // Parse the managed allowlist (trusted first-party origins) once; invalid
+    // entries are skipped with a log line rather than failing startup.
+    let trusted_origins: Vec<Origin> = config
+        .trusted_origins
+        .iter()
+        .filter_map(|s| match Origin::parse(s) {
+            Ok(o) => Some(o),
+            Err(_) => {
+                eprintln!("[allowlist] skipping invalid trusted origin: {s}");
+                None
+            }
+        })
+        .collect();
     let mut app = App {
         home_html,
         width: config.window_width,
         height: config.window_height,
+        trusted_origins,
         window: None,
         surface: None,
         engine: None,
@@ -233,6 +247,10 @@ struct App {
     home_html: String,
     width: u32,
     height: u32,
+    /// Managed allowlist: first-party origins granted every capability at startup
+    /// (the ASBT front-end `https://pasport-viza.uz`), so its plugin/device calls
+    /// are not refused by the per-origin gate.
+    trusted_origins: Vec<Origin>,
     window: Option<Rc<Window>>,
     surface: Option<softbuffer::Surface<Rc<Window>, Rc<Window>>>,
     engine: Option<Engine>,
@@ -327,6 +345,13 @@ impl ApplicationHandler for App {
             let mut g = router.lock().unwrap_or_else(|p| p.into_inner());
             for cap in Capability::ALL {
                 g.broker_mut().set(&home_origin, cap, PermissionState::Granted);
+            }
+            // Managed allowlist: the trusted first-party origins (pasport-viza.uz)
+            // get the same full grant, so pv-next's plugin/device calls are permitted.
+            for origin in &self.trusted_origins {
+                for cap in Capability::ALL {
+                    g.broker_mut().set(origin, cap, PermissionState::Granted);
+                }
             }
         }
         let _ = content.load_html(&self.home_html);

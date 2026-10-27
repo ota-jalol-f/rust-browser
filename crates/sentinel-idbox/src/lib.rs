@@ -7,11 +7,13 @@
 //!   `winscard`, no vendor SDK): APDU `FF CA 00 00 00`, the 10-byte response hex
 //!   lower-cased and cut to 14 chars (`data`), or `""` on any error — exactly the
 //!   reference `PcScChipUidReader` + `UidFormatter`. `success` stays `true`.
-//! - `ReadDocument()` → the MRZ + chip read. In the reference this opens a modal
-//!   window, reads the MRZ over serial, and reads the chip in an **x86 helper**
-//!   (`ElyMRTD.dll` is x86-only). That path needs the device + the serial scanner +
-//!   the vendor SDK, so it is a documented stub here (returns a device-missing
-//!   failure) until the modal + helper flow lands.
+//! - `ReadDocument()` → the MRZ + chip read. The reference opened a modal window;
+//!   by deployment requirement we do NOT — idbox works purely through the plugin
+//!   API, and the front-end owns any UI. The read (MRZ over serial, then the chip
+//!   in an **x86 helper** because `ElyMRTD.dll` is x86-only) will stream status
+//!   over the plugin API and resolve with the document envelope. It needs the
+//!   device + serial scanner + vendor SDK, so it is a documented stub here
+//!   (device-missing failure) until that flow lands.
 //!
 //! The generic `share.RunPlugin("Asbt.IdBox", {"method":"readChipUid"})` request
 //! shape is honoured too (case-insensitive `method`), matching the reference's
@@ -38,8 +40,10 @@ impl IdBoxPlugin {
         PluginResult::ok(uid_via_pcsc().unwrap_or_default())
     }
 
-    /// `ReadDocument`: MRZ (serial) + chip (x86 helper) read. Stub until that flow
-    /// lands — the device, the serial scanner and the vendor SDK are all required.
+    /// `ReadDocument`: MRZ (serial) + chip (x86 helper) read, returned through the
+    /// plugin API (status via streaming), with NO modal window — the front-end owns
+    /// the UI. Stub until that flow lands — the device, the serial scanner and the
+    /// vendor SDK are all required.
     fn read_document(&self) -> PluginResult {
         PluginResult::fail(
             "ID BOX hujjat o'qish hali ulanmagan — serial MRZ skaner + x86 chip helper kerak",
@@ -65,8 +69,9 @@ impl Plugin for IdBoxPlugin {
 
     fn host_methods(&self) -> Vec<HostMethod> {
         // pv-next calls hostObjects.idbox.ReadChipUid() / .ReadDocument() directly.
-        // ReadDocument is modal in the reference; it becomes a `ui` method (+ an
-        // `execute_ui` overlay) once the serial+helper read flow is implemented.
+        // Both are plain plugin-API calls (`run`, never a modal overlay — by
+        // deployment requirement): ReadDocument will stream status over the plugin
+        // API while the serial MRZ + x86 chip read runs, then resolve the envelope.
         vec![HostMethod::run("ReadChipUid"), HostMethod::run("ReadDocument")]
     }
 
