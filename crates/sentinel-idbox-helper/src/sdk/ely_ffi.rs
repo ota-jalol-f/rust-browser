@@ -25,7 +25,7 @@ use libloading::{Library, Symbol};
 use sentinel_idbox_core::chip::ElyMrtd;
 use sentinel_idbox_core::helper::ChipSdk;
 
-use crate::decoder::PassthroughDecoder;
+use crate::decoder::FreeImageParityDecoder;
 
 type VoidFn = unsafe extern "stdcall" fn();
 type AnsiToI32 = unsafe extern "stdcall" fn(*const c_char) -> i32;
@@ -41,7 +41,7 @@ const PHOTO_CAP: usize = 256 * 1024;
 pub struct RealChipSdk {
     ely_path: PathBuf,
     rdr: Library,
-    decoder: PassthroughDecoder,
+    decoder: FreeImageParityDecoder,
 }
 
 impl RealChipSdk {
@@ -59,7 +59,7 @@ impl RealChipSdk {
         if !ely_path.exists() {
             return Err(format!("ElyMRTD.dll not found: {}", ely_path.display()));
         }
-        Ok(RealChipSdk { ely_path, rdr, decoder: PassthroughDecoder })
+        Ok(RealChipSdk { ely_path, rdr, decoder: FreeImageParityDecoder })
     }
 }
 
