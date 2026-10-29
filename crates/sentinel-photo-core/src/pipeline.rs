@@ -140,6 +140,13 @@ pub fn capture_to_jpeg(camera_file: &[u8], percent: i32) -> Result<Vec<u8>, Pipe
     to_jpeg(&capture(camera_file, percent)?)
 }
 
+/// Decode a JPEG to 24bpp RGB, or `None` on any failure — C#'s
+/// `CImageWorks.ByteArrayToImage`. Used for the caller's `currentPhoto`: a valid
+/// base64 that is not an image is treated as no image (the pane stays empty).
+pub fn decode_jpeg(bytes: &[u8]) -> Option<Rgb> {
+    decode_rgb(bytes).ok()
+}
+
 /// Decode a JPEG to 24bpp RGB. Grayscale is expanded, RGBA has its alpha dropped
 /// (GDI+ produced a 24bpp bitmap either way).
 fn decode_rgb(bytes: &[u8]) -> Result<Rgb, PipelineError> {

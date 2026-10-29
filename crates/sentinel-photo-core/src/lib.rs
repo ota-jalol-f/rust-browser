@@ -15,22 +15,33 @@
 //! - [`texts`] — every user-visible string, byte-for-byte (homoglyphs kept).
 //! - [`errortext`] — `CError.GetAllMessages`, the box-detail / toast body.
 //! - [`base64`] — standard base64 encode + a .NET-`Convert`-shaped validator.
+//! - [`camera`] — the Canon camera seam (`ICanonCamera`) + its async events.
+//! - [`view`] — the window seam (`IDocumentPhotoView`).
+//! - [`session`] — `DocumentPhotoSession`, the `FormCaptureDocument` state machine
+//!   over the camera + view seams (device-free; fake-driven in tests).
 //!
-//! The Canon camera, the live-view/capture/save state machine and the overlay
-//! window are built on top of this in `sentinel-photo` (the plugin crate).
+//! The real EDSDK camera, the overlay window and the plugin wiring are built on top
+//! of this in `sentinel-photo` (the plugin crate).
 
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
 
 pub mod base64;
+pub mod camera;
 pub mod dispatch;
 pub mod errortext;
 pub mod options;
 pub mod pipeline;
+pub mod session;
 pub mod texts;
+pub mod view;
 
+pub use camera::{Camera, CameraError, CameraEvent};
 pub use dispatch::{classify, PhotoCall};
 pub use options::{DocumentPhotoOptions, OptionsError};
 pub use pipeline::{
-    capture, capture_to_jpeg, crop_rect, scaled_size, to_jpeg, PipelineError, Rect, Rgb,
+    capture, capture_to_jpeg, crop_rect, decode_jpeg, scaled_size, to_jpeg, PipelineError, Rect,
+    Rgb,
 };
+pub use session::{DocumentPhotoSession, LiveViewState};
+pub use view::DocumentView;
