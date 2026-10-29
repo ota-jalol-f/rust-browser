@@ -2245,9 +2245,20 @@ dependencies = [
  "sentinel-permissions",
  "sentinel-photo",
  "sentinel-plugin",
+ "sentinel-signpad",
  "serde_json",
  "softbuffer",
  "winit",
+]
+
+[[package]]
+name = "sentinel-signpad"
+version = "0.1.0"
+dependencies = [
+ "png",
+ "sentinel-plugin",
+ "sentinel-signpad-core",
+ "serde_json",
 ]
 
 [[package]]

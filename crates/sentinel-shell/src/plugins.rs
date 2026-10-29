@@ -173,6 +173,10 @@ pub fn builtin_registry() -> PluginRegistry {
     // Canon EDSDK is linked only in a `device` x64 build, else a stub drives the
     // overlay to the reference's "Canon files missing" box.
     let _ = registry.register(Box::new(sentinel_photo::PhotoPlugin::new()));
+    // signpad: Capture() via the `signpad` host object opens the signature overlay
+    // (an HTML canvas, since SigPlusNET is managed .NET and no native Topaz SDK is
+    // available) and returns a 495x285 base64 JPEG.
+    let _ = registry.register(Box::new(sentinel_signpad::SignPadPlugin::new()));
     registry
 }
 
@@ -242,6 +246,18 @@ mod tests {
         let methods: Vec<(&str, bool)> =
             photo.methods.iter().map(|m| (m.js.as_str(), m.ui)).collect();
         assert_eq!(methods, [("TakePhoto", false), ("TakeDocumentPhoto", true)]);
+    }
+
+    #[test]
+    fn signpad_is_registered_with_its_capture_host_method() {
+        let reg = builtin_registry();
+        assert!(reg.contains("Asbt.SignPad"));
+        let spec = reg.host_object_specs();
+        let signpad = spec.iter().find(|s| s.name == "signpad").expect("signpad host object");
+        assert_eq!(signpad.id, "Asbt.SignPad");
+        let methods: Vec<(&str, bool)> =
+            signpad.methods.iter().map(|m| (m.js.as_str(), m.ui)).collect();
+        assert_eq!(methods, [("Capture", true)]);
     }
 
     #[test]

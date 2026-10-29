@@ -21,6 +21,7 @@ members = [
     "crates/sentinel-photo-core",
     "crates/sentinel-photo",
     "crates/sentinel-signpad-core",
+    "crates/sentinel-signpad",
 ]
 
 [workspace.package]

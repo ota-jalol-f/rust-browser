@@ -20,6 +20,7 @@
 #![warn(missing_docs)]
 
 pub mod acceptance;
+pub mod base64;
 pub mod encoder;
 pub mod image;
 pub mod session;
