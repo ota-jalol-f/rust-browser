@@ -1,0 +1,28 @@
+[package]
+name = "sentinel-photo"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+
+# The Asbt.Photo plugin (x64): the in-process Rust equivalent of the reference
+# Asbt.Photo.Plugin's PhotoObj host object. pv-next drives it through the JS host
+# object chrome.webview.hostObjects.photo:
+#   - TakeDocumentPhoto(optionsJson): the document-photo camera overlay (1.1.0).
+#   - TakePhoto(): the 1.0.0 full-frame path (a documented stub here).
+# The device-free logic lives in sentinel-photo-core; this crate adds the plugin
+# wiring, the overlay UI op, and the Canon EDSDK camera (behind `device`, x64).
+[features]
+default = []
+# `device` links the real Canon EDSDK camera (EDSDK.dll via libloading, x64). Every
+# other build uses a stub camera that reports the Canon files missing, so the
+# overlay shows the reference's "Canon фотокамера файллари топилмади" and the
+# document flow still works end to end (the user closes = cancel).
+device = ["dep:libloading"]
+
+[dependencies]
+sentinel-plugin = { path = "../sentinel-plugin" }
+sentinel-photo-core = { path = "../sentinel-photo-core" }
+serde_json = "1"
+
+[target.'cfg(windows)'.dependencies]
+libloading = { version = "0.8.5", optional = true }

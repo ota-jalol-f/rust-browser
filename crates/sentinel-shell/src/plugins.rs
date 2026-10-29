@@ -168,6 +168,11 @@ pub fn builtin_registry() -> PluginRegistry {
     // pv-next reaches it through its `idbox` JS host object (host_methods), the real
     // pv-next contract — not only `share.RunPlugin`.
     let _ = registry.register(Box::new(sentinel_idbox::IdBoxPlugin::new()));
+    // photo: TakePhoto (1.0.0 stub) + TakeDocumentPhoto (1.1.0) via the `photo` host
+    // object. TakeDocumentPhoto opens the camera overlay (the UI path); the real
+    // Canon EDSDK is linked only in a `device` x64 build, else a stub drives the
+    // overlay to the reference's "Canon files missing" box.
+    let _ = registry.register(Box::new(sentinel_photo::PhotoPlugin::new()));
     registry
 }
 
@@ -223,6 +228,20 @@ mod tests {
         assert!(r.success);
         assert!(r.error_message.is_empty());
         assert!(r.data.is_empty() || r.data.len() == 14);
+    }
+
+    #[test]
+    fn photo_is_registered_with_its_host_methods() {
+        let reg = builtin_registry();
+        assert!(reg.contains("Asbt.Photo"));
+        let spec = reg.host_object_specs();
+        let photo = spec.iter().find(|s| s.name == "photo").expect("photo host object");
+        assert_eq!(photo.id, "Asbt.Photo");
+        // pv-next calls photo.TakePhoto() / .TakeDocumentPhoto(opts); the latter is a
+        // UI (overlay) method, the former a plain call.
+        let methods: Vec<(&str, bool)> =
+            photo.methods.iter().map(|m| (m.js.as_str(), m.ui)).collect();
+        assert_eq!(methods, [("TakePhoto", false), ("TakeDocumentPhoto", true)]);
     }
 
     #[test]

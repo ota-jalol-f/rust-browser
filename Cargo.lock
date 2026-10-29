@@ -2181,6 +2181,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "sentinel-photo"
+version = "0.1.0"
+dependencies = [
+ "libloading",
+ "sentinel-photo-core",
+ "sentinel-plugin",
+ "serde_json",
+]
+
+[[package]]
 name = "sentinel-photo-core"
 version = "0.1.0"
 dependencies = [
@@ -2211,6 +2221,7 @@ dependencies = [
  "sentinel-idbox",
  "sentinel-ipc",
  "sentinel-permissions",
+ "sentinel-photo",
  "sentinel-plugin",
  "serde_json",
  "softbuffer",
