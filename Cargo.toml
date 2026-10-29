@@ -20,6 +20,7 @@ members = [
     "crates/sentinel-idbox-helper",
     "crates/sentinel-photo-core",
     "crates/sentinel-photo",
+    "crates/sentinel-signpad-core",
 ]
 
 [workspace.package]
