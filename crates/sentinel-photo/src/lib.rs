@@ -11,7 +11,9 @@
 //! [`edsdk`] behind the `device` feature (x64 Windows), with a [`camera_stub`]
 //! fallback everywhere else.
 
-#![forbid(unsafe_code)]
+// `deny` (not `forbid`) so the EDSDK FFI module can opt in with `allow`; all other
+// modules stay unsafe-free.
+#![deny(unsafe_code)]
 #![warn(missing_docs)]
 
 pub mod camera_stub;
