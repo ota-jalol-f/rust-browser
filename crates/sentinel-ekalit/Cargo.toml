@@ -1,0 +1,20 @@
+[package]
+name = "sentinel-ekalit"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+
+# The Asbt.eKalit plugin (x64): the in-process Rust equivalent of the reference
+# Asbt.EKalitWebV6.Plugin's `ekalit` host object (E-IMZO / E-Kalit USB-token
+# signing). pv-next drives it through chrome.webview.hostObjects.ekalit:
+#   - EKalitId(): the token UID.
+#   - SignStringV1(value) / SignStringV2(data): sign a string / a canonicalised model.
+#   - GetCertificateInfo(): the signer certificate.
+# The device-free logic (canonicalisation, Answere, models, cert parse) is in
+# sentinel-ekalit-core. The token is reached through the vendor MANAGED libesigner.net
+# wrapper (no native API in the source, like SignPad's Topaz), so there is no Rust
+# signing backend: a stub signer reports "E-Kalit уланмаган" and the overlay shows it.
+[dependencies]
+sentinel-plugin = { path = "../sentinel-plugin" }
+sentinel-ekalit-core = { path = "../sentinel-ekalit-core" }
+serde_json = "1"

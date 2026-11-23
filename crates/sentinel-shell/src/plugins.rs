@@ -182,6 +182,11 @@ pub fn builtin_registry() -> PluginRegistry {
     // Suprema RealScan device is behind a `device` x64 build, else a stub drives the
     // overlay to the reference's no-scanner state.
     let _ = registry.register(Box::new(sentinel_fingerprints::FingerprintsPlugin::new()));
+    // ekalit: EKalitId + SignStringV1/V2 + GetCertificateInfo via the `ekalit` host
+    // object (E-IMZO / E-Kalit USB token). The signing methods open a PIN overlay;
+    // the token backend needs the vendor native SDK (managed libesigner only here),
+    // so a stub reports "E-Kalit уланмаган".
+    let _ = registry.register(Box::new(sentinel_ekalit::EKalitPlugin::new()));
     registry
 }
 
@@ -274,6 +279,20 @@ mod tests {
         assert_eq!(fp.id, "Asbt.Fingerprints");
         let methods: Vec<(&str, bool)> = fp.methods.iter().map(|m| (m.js.as_str(), m.ui)).collect();
         assert_eq!(methods, [("Scan", false), ("Enroll", true)]);
+    }
+
+    #[test]
+    fn ekalit_is_registered_with_its_host_methods() {
+        let reg = builtin_registry();
+        assert!(reg.contains("Asbt.eKalit"));
+        let spec = reg.host_object_specs();
+        let ek = spec.iter().find(|s| s.name == "ekalit").expect("ekalit host object");
+        assert_eq!(ek.id, "Asbt.eKalit");
+        let methods: Vec<(&str, bool)> = ek.methods.iter().map(|m| (m.js.as_str(), m.ui)).collect();
+        assert_eq!(
+            methods,
+            [("EKalitId", false), ("SignStringV1", true), ("SignStringV2", true), ("GetCertificateInfo", true)]
+        );
     }
 
     #[test]

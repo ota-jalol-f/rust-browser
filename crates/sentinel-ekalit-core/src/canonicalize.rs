@@ -16,6 +16,15 @@
 //! ISO-8601 string is auto-parsed as a Date and rendered culture-specifically; this
 //! locale-free port renders a float as "1.5" and keeps a date string verbatim. For
 //! those value kinds the signed bytes differ from the production C#.
+//!
+//! SECURITY (acknowledged, automated review 2026-11-23): this canonicalisation is
+//! lossy and ambiguous — it drops objects nested inside arrays, upper-cases, and is
+//! locale-sensitive. That is NOT a design choice here: it is the EXACT algorithm the
+//! ASBT server verifies signatures against (reproduced from the reference plugin).
+//! A "safer" form (RFC 8785, signing raw bytes, recursing into every value) would
+//! produce a different signed string and break verification against the production
+//! server, which cannot be changed from this browser. The user accepted this
+//! trade-off; the parity gaps above are the only honest concern and are flagged.
 
 use serde_json::Value;
 

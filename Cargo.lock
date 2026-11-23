@@ -2230,6 +2230,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "sentinel-ekalit"
+version = "0.1.0"
+dependencies = [
+ "sentinel-ekalit-core",
+ "sentinel-plugin",
+ "serde_json",
+]
+
+[[package]]
 name = "sentinel-ekalit-core"
 version = "0.1.0"
 dependencies = [
@@ -2375,6 +2384,7 @@ dependencies = [
  "sentinel-core",
  "sentinel-device-host",
  "sentinel-dll-host",
+ "sentinel-ekalit",
  "sentinel-engine",
  "sentinel-fingerprints",
  "sentinel-hosts",

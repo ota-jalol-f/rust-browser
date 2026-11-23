@@ -25,6 +25,7 @@ members = [
     "crates/sentinel-fingerprints-core",
     "crates/sentinel-fingerprints",
     "crates/sentinel-ekalit-core",
+    "crates/sentinel-ekalit",
 ]
 
 [workspace.package]
