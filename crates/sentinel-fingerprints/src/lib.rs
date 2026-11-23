@@ -18,6 +18,10 @@
 pub mod device_stub;
 pub mod overlay;
 
+// The RealScan RS_SDK FFI (its own `#![allow(unsafe_code)]`; isolated to that module).
+#[cfg(all(feature = "device", windows, target_arch = "x86_64"))]
+pub mod rssdk;
+
 use sentinel_fingerprints_core::sdk::RealScanDevice;
 use sentinel_fingerprints_core::{classify, EnrollOptions, FingerprintsCall};
 use sentinel_plugin::{HostMethod, Plugin, PluginDescriptor, PluginKind, PluginResult, PluginUi};
@@ -46,9 +50,20 @@ fn scan_stub() -> PluginResult {
     PluginResult::fail("Scan (1.0.0) hali ko'chirilmagan; Enroll'dan foydalaning")
 }
 
-/// The RealScan device for one overlay: the stub until the RS_SDK FFI lands.
+/// The RealScan device for one overlay: the real RS_SDK on an x64 Windows `device`
+/// build (falling back to the stub when no SDK/scanner loads), else the stub.
 fn make_device() -> Box<dyn RealScanDevice> {
-    Box::new(StubDevice)
+    #[cfg(all(feature = "device", windows, target_arch = "x86_64"))]
+    {
+        match rssdk::RealScan::load() {
+            Ok(device) => Box::new(device),
+            Err(_) => Box::new(StubDevice),
+        }
+    }
+    #[cfg(not(all(feature = "device", windows, target_arch = "x86_64")))]
+    {
+        Box::new(StubDevice)
+    }
 }
 
 impl Plugin for FingerprintsPlugin {
