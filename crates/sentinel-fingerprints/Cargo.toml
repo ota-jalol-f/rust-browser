@@ -1,0 +1,20 @@
+[package]
+name = "sentinel-fingerprints"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+
+# The Asbt.Fingerprints plugin (x64): the in-process Rust equivalent of the
+# reference Asbt.Fingerprints.Plugin's `fingerprints` host object. pv-next drives it
+# through chrome.webview.hostObjects.fingerprints:
+#   - Enroll(optionsJson): the 10-finger enrollment overlay (1.1.0).
+#   - Scan(): the 1.0.0 single-flat-finger path (a documented stub here).
+# The device-free logic lives in sentinel-fingerprints-core; this crate adds the
+# plugin wiring and the enrollment overlay UI op. The real Suprema RealScan device
+# (RS_SDK.dll FFI + WSQ, behind a `device` feature) is the next increment; for now a
+# stub device reports no scanner. Fingerprint capture has no browser substitute, so
+# without the device the overlay shows the no-scanner state (like Photo's no-camera).
+[dependencies]
+sentinel-plugin = { path = "../sentinel-plugin" }
+sentinel-fingerprints-core = { path = "../sentinel-fingerprints-core" }
+serde_json = "1"

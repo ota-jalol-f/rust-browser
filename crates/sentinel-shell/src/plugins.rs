@@ -177,6 +177,11 @@ pub fn builtin_registry() -> PluginRegistry {
     // (an HTML canvas, since SigPlusNET is managed .NET and no native Topaz SDK is
     // available) and returns a 495x285 base64 JPEG.
     let _ = registry.register(Box::new(sentinel_signpad::SignPadPlugin::new()));
+    // fingerprints: Scan (1.0.0 stub) + Enroll (1.1.0) via the `fingerprints` host
+    // object. Enroll opens the 10-finger enrollment overlay (the UI path); the real
+    // Suprema RealScan device is behind a `device` x64 build, else a stub drives the
+    // overlay to the reference's no-scanner state.
+    let _ = registry.register(Box::new(sentinel_fingerprints::FingerprintsPlugin::new()));
     registry
 }
 
@@ -258,6 +263,17 @@ mod tests {
         let methods: Vec<(&str, bool)> =
             signpad.methods.iter().map(|m| (m.js.as_str(), m.ui)).collect();
         assert_eq!(methods, [("Capture", true)]);
+    }
+
+    #[test]
+    fn fingerprints_is_registered_with_its_host_methods() {
+        let reg = builtin_registry();
+        assert!(reg.contains("Asbt.Fingerprints"));
+        let spec = reg.host_object_specs();
+        let fp = spec.iter().find(|s| s.name == "fingerprints").expect("fingerprints host object");
+        assert_eq!(fp.id, "Asbt.Fingerprints");
+        let methods: Vec<(&str, bool)> = fp.methods.iter().map(|m| (m.js.as_str(), m.ui)).collect();
+        assert_eq!(methods, [("Scan", false), ("Enroll", true)]);
     }
 
     #[test]

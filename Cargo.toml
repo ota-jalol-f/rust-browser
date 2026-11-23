@@ -23,6 +23,7 @@ members = [
     "crates/sentinel-signpad-core",
     "crates/sentinel-signpad",
     "crates/sentinel-fingerprints-core",
+    "crates/sentinel-fingerprints",
 ]
 
 [workspace.package]

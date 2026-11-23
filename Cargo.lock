@@ -2133,6 +2133,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "sentinel-fingerprints"
+version = "0.1.0"
+dependencies = [
+ "sentinel-fingerprints-core",
+ "sentinel-plugin",
+ "serde_json",
+]
+
+[[package]]
 name = "sentinel-fingerprints-core"
 version = "0.1.0"
 dependencies = [
@@ -2246,6 +2255,7 @@ dependencies = [
  "sentinel-device-host",
  "sentinel-dll-host",
  "sentinel-engine",
+ "sentinel-fingerprints",
  "sentinel-hosts",
  "sentinel-idbox",
  "sentinel-ipc",
