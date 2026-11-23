@@ -10,9 +10,14 @@
 //! - [`dispatch`] — classify a request into Enroll / Scan.
 //! - [`texts`] — the user-visible strings (ported byte-for-byte).
 //! - [`base64`] — standard base64 (the WSQ bytes → `FingerN`).
+//! - [`error_dico`] — the RealScan result-code → message table.
+//! - [`sdk`] — the RealScan device seam (`RealScanDevice`) + its structs/constants.
+//! - [`view`] — the enrollment window seam (`EnrollView`).
+//! - [`session`] — `EnrollmentSession`, `FormFingerprintsV2`'s state machine over
+//!   the device + view seams (device-free; fake-driven in tests).
 //!
-//! The RealScan device (RS_SDK FFI + WSQ encode + segmentation), the enrollment
-//! window overlay and the plugin wiring are built on top of this in
+//! The real RealScan device (RS_SDK FFI + WSQ encode + segmentation), the
+//! enrollment window overlay and the plugin wiring are built on top of this in
 //! `sentinel-fingerprints`.
 
 #![forbid(unsafe_code)]
@@ -20,14 +25,21 @@
 
 pub mod base64;
 pub mod dispatch;
+pub mod error_dico;
 pub mod finger;
 pub mod model_json;
 pub mod options;
+pub mod sdk;
+pub mod session;
 pub mod texts;
+pub mod view;
 pub mod wsqtrim;
 
 pub use dispatch::{classify, FingerprintsCall};
 pub use finger::{EnrolledFinger, FingerPosition, FingerStatus, FingerType, GreyImage, TileBack};
 pub use model_json::{build, serialize, Dto, IncompleteError};
 pub use options::{EnrollOptions, OptionsError};
+pub use sdk::{CaptureOutcome, RealScanDevice, RsDeviceText, RsPoint, RsSegmentation, RsSlapInfo};
+pub use session::{EnrollmentSession, FingerGroup, SdkExportMissing};
+pub use view::{AlertKind, EnrollView};
 pub use wsqtrim::remove_null_elements;
