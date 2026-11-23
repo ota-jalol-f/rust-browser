@@ -1,0 +1,24 @@
+[package]
+name = "sentinel-widget"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+
+# The Asbt.Widget plugin: the in-process Rust equivalent of the reference
+# Asbt.Widget.Plugin (`WidgetExtension : IBrowserExtension`, Id "Asbt.Widget",
+# Name "widget"). A headless data plugin — no device, no UI overlay, no host
+# object (its `Init` is empty). It is reached only through
+# `share.RunPlugin("Asbt.Widget", …)`.
+#
+# The reference's only live work is to return a `List<RepModel>` of per-region
+# protocol counts queried from Oracle (`ADMPROTOKOL.PACK_TB_WIDGET.GET_PROT_COUNT_VIL`
+# via `RdmWorks`). That Oracle call is COMMENTED OUT in the reference (RdmWorks is
+# missing from Asbt.MyUtils 1.1.36), so the reference's success path returns an
+# EMPTY list. The connection-string plumbing (GetConnStr + CCrypt Rijndael decrypt)
+# is server-side config for a client that has no Oracle, so it is out of scope here.
+#
+# Pure logic, no FFI — hence no `-core` split and no `device` feature.
+[dependencies]
+sentinel-plugin = { path = "../sentinel-plugin" }
+serde = { workspace = true }
+serde_json = "1"

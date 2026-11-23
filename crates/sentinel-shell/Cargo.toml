@@ -25,6 +25,7 @@ ultralight = [
     "dep:sentinel-signpad",
     "dep:sentinel-fingerprints",
     "dep:sentinel-ekalit",
+    "dep:sentinel-widget",
     "dep:sentinel-device-host",
     "dep:sentinel-dll-host",
     "dep:sentinel-ipc",
@@ -46,6 +47,7 @@ sentinel-photo = { path = "../sentinel-photo", optional = true }
 sentinel-signpad = { path = "../sentinel-signpad", optional = true }
 sentinel-fingerprints = { path = "../sentinel-fingerprints", optional = true }
 sentinel-ekalit = { path = "../sentinel-ekalit", optional = true }
+sentinel-widget = { path = "../sentinel-widget", optional = true }
 sentinel-device-host = { path = "../sentinel-device-host", optional = true }
 sentinel-dll-host = { path = "../sentinel-dll-host", optional = true }
 sentinel-ipc = { path = "../sentinel-ipc", optional = true }

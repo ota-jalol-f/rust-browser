@@ -187,6 +187,11 @@ pub fn builtin_registry() -> PluginRegistry {
     // the token backend needs the vendor native SDK (managed libesigner only here),
     // so a stub reports "E-Kalit уланмаган".
     let _ = registry.register(Box::new(sentinel_ekalit::EKalitPlugin::new()));
+    // widget: the reference `Asbt.Widget` data plugin (IBrowserExtension, no host
+    // object). Its Oracle-backed per-region protocol counts are disabled in the
+    // reference and server-side anyway, so it returns an empty row array `[]`.
+    // pv-next does not call it; registered for parity so GetPlugins() lists it.
+    let _ = registry.register(Box::new(sentinel_widget::WidgetPlugin::new()));
     registry
 }
 
@@ -293,6 +298,20 @@ mod tests {
             methods,
             [("EKalitId", false), ("SignStringV1", true), ("SignStringV2", true), ("GetCertificateInfo", true)]
         );
+    }
+
+    #[test]
+    fn widget_is_registered_headless_and_returns_empty_rows() {
+        let mut reg = builtin_registry();
+        assert!(reg.contains("Asbt.Widget"));
+        // IBrowserExtension with an empty Init → no host object (RunPlugin-only).
+        let spec = reg.host_object_specs();
+        assert!(spec.iter().all(|s| s.name != "widget"), "widget exposes no host object");
+        // share.RunPlugin("Asbt.Widget", …) → the empty widget-row array.
+        let r = reg.dispatch("Asbt.Widget", r#"{"method":"run","args":[]}"#);
+        assert!(r.success);
+        assert!(r.error_message.is_empty());
+        assert_eq!(r.data, "[]");
     }
 
     #[test]
