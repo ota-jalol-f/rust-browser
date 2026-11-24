@@ -1,35 +1,13 @@
 //! Built-in Rust plugins registered into the shell's [`PluginRegistry`], and the
 //! factory that assembles them. Hardware plugins (fingerprint, ID reader,
-//! signature pad, camera) land here over the coming phases; for now a headless
-//! `Asbt.System` plugin and a streaming `Asbt.Reader` demo prove the
-//! `window.share` bridge (one-shot and streaming) end to end.
+//! signature pad, camera) land here over the coming phases; the streaming
+//! `Asbt.Reader` and modal `Asbt.Confirm` demos prove the `window.share` bridge
+//! (streaming and modal UI) end to end alongside the real ported plugins.
 
 use sentinel_plugin::{
     Plugin, PluginDescriptor, PluginKind, PluginRegistry, PluginResult, PluginStream, PluginUi,
     StreamStep, UiStep,
 };
-
-/// A minimal built-in plugin mirroring the reference `Asbt.System`: answers
-/// `ping` with `pong` and echoes anything else. Headless (no UI).
-pub struct SystemPlugin;
-
-impl Plugin for SystemPlugin {
-    fn descriptor(&self) -> PluginDescriptor {
-        PluginDescriptor {
-            id: "Asbt.System".to_string(),
-            name: "system".to_string(),
-            version: "1.0.0".to_string(),
-            kind: PluginKind::Extension,
-        }
-    }
-
-    fn execute(&mut self, request: &str) -> PluginResult {
-        match request.trim() {
-            "ping" => PluginResult::ok("pong"),
-            other => PluginResult::ok(other),
-        }
-    }
-}
 
 /// A demo STREAMING plugin, shaped like the idbox chip read: it emits a few
 /// status chunks, then a final result. Proves `window.share.RunPluginStream`
@@ -160,7 +138,12 @@ impl Plugin for ConfirmPlugin {
 pub fn builtin_registry() -> PluginRegistry {
     let mut registry = PluginRegistry::new();
     // Distinct ids — registration cannot clash; ignore the Result.
-    let _ = registry.register(Box::new(SystemPlugin));
+    // system: the reference `Asbt.System` host object. Direct methods (ping,
+    // isDebug, GetGUID, Usb*, Get/SetAppSettings) are `raw` — the pv-next `system`
+    // service uses the return value with no envelope unwrap; `mbox` is the one
+    // deferred/modal method. GetAppSettings backs the workstation settings
+    // (RecordCountOnPage, UseReader) pv-next reads.
+    let _ = registry.register(Box::new(sentinel_system::SystemPlugin::new()));
     let _ = registry.register(Box::new(ReaderPlugin));
     let _ = registry.register(Box::new(ConfirmPlugin));
     // idbox runs in-process: ReadChipUid is x64 PC/SC (no device SDK); ReadDocument
@@ -200,11 +183,38 @@ mod tests {
     use super::*;
 
     #[test]
-    fn system_plugin_pings_and_echoes() {
-        let mut reg = builtin_registry();
+    fn system_is_registered_with_its_raw_host_methods_and_mbox_ui() {
+        let reg = builtin_registry();
         assert!(reg.contains("Asbt.System"));
-        assert_eq!(reg.dispatch("Asbt.System", "ping"), PluginResult::ok("pong"));
-        assert_eq!(reg.dispatch("Asbt.System", "hi"), PluginResult::ok("hi"));
+        let spec = reg.host_object_specs();
+        let system = spec.iter().find(|s| s.name == "system").expect("system host object");
+        assert_eq!(system.id, "Asbt.System");
+        // Every direct method is raw (the pv-next service uses the return verbatim);
+        // mbox is the one deferred/modal (ui) method.
+        let methods: Vec<(&str, bool, bool)> =
+            system.methods.iter().map(|m| (m.js.as_str(), m.ui, m.raw)).collect();
+        assert_eq!(
+            methods,
+            [
+                ("ping", false, true),
+                ("isDebug", false, true),
+                ("GetGUID", false, true),
+                ("mbox", true, false),
+                ("UsbEnable", false, true),
+                ("UsbDisable", false, true),
+                ("GetAppSettings", false, true),
+                ("SetAppSettings", false, true),
+            ]
+        );
+    }
+
+    #[test]
+    fn system_is_debug_dispatches_to_a_raw_json_true() {
+        let mut reg = builtin_registry();
+        let r = reg.dispatch("Asbt.System", r#"{"method":"isDebug","args":[]}"#);
+        assert!(r.success && r.error_message.is_empty());
+        // Raw: data JSON-decodes to a JS boolean true.
+        assert_eq!(serde_json::from_str::<serde_json::Value>(&r.data).unwrap(), serde_json::Value::Bool(true));
     }
 
     #[test]

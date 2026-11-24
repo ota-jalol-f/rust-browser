@@ -2394,6 +2394,7 @@ dependencies = [
  "sentinel-photo",
  "sentinel-plugin",
  "sentinel-signpad",
+ "sentinel-system",
  "sentinel-widget",
  "serde_json",
  "softbuffer",
@@ -2427,6 +2428,15 @@ dependencies = [
  "sentinel-core",
  "sentinel-crypto",
  "tempfile",
+]
+
+[[package]]
+name = "sentinel-system"
+version = "0.1.0"
+dependencies = [
+ "rand_core",
+ "sentinel-plugin",
+ "serde_json",
 ]
 
 [[package]]
