@@ -1,0 +1,29 @@
+[package]
+name = "sentinel-idbox-helper"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+
+# The x86 chip helper: a tiny process the x64 plugin spawns to reach the x86-only
+# ElyMRTD.dll / ElyRdrControl.dll (which cannot be loaded into the x64 browser). It
+# connects to the plugin's CurrentUser named pipe and runs sentinel-idbox-core's
+# HelperServer. The real FFI is linked only for `device` on x86 (where the DLLs live);
+# every other build (incl. this x64 host for compile-checking) uses a stub SDK that
+# reports the chip unavailable, so the plugin falls back to the MRZ.
+[[bin]]
+name = "sentinel-idbox-helper"
+path = "src/main.rs"
+
+[features]
+default = []
+# `device` adds the real ElyMRTD FFI (libloading, x86) and the FreeImage-parity photo
+# path: pure-Rust JPEG 2000 decode (j2k-native) + JPEG encode (jpeg-encoder), so the
+# i686 Win7 build needs no C toolchain.
+device = ["dep:libloading", "dep:j2k-native", "dep:jpeg-encoder"]
+
+[dependencies]
+sentinel-idbox-core = { path = "../sentinel-idbox-core" }
+interprocess = "2.2.2"
+libloading = { version = "0.8.5", optional = true }
+j2k-native = { version = "0.8.0", optional = true }
+jpeg-encoder = { version = "0.6.1", optional = true }

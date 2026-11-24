@@ -1,0 +1,16 @@
+[package]
+name = "sentinel-dll-host"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+sentinel-core = { path = "../sentinel-core" }
+sentinel-ipc = { path = "../sentinel-ipc" }
+# Runtime dynamic library loading.
+libloading = "0.8"
+# SHA-256 for verifying a DLL matches the consented hash before loading.
+sha2 = "0.10"
+
+[dev-dependencies]
+tempfile = "3"

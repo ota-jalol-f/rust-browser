@@ -1,0 +1,27 @@
+[package]
+name = "sentinel-photo-core"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+
+# Pure, device-free logic of the reference `Asbt.Photo.Plugin` 1.1.0 document-photo
+# path (pv-winform FormCaptureDocument). A faithful port of the parts that do not
+# touch the Canon EDSDK: the `TakeDocumentPhoto` option parsing + validation, the
+# request dispatch (host-object `{"method","args"}` vs `share.RunPlugin` inline),
+# the GDI+ image pipeline (crop, ScaleByPercent, JPEG at 96 dpi), the user-visible
+# texts and the error-chain formatter. No hardware, no FFI, no OS deps — so every
+# host and both Win7 targets build and test it.
+#
+# Parity: the crop/scale arithmetic and the option/dispatch/text surface are exact
+# (pinned against the C# tests). The image *pixels* are a different decoder/resampler
+# /encoder than GDI+, so — exactly as the C# test does for its own x64-vs-x86 GDI+
+# comparison — the pipeline is pinned on size/format/dpi/JPEG-markers exactly and on
+# pixel closeness against tools/DocumentPhoto.Reference (tests/fixtures/reference.json
+# + the four committed x86 goldens) within a measured, documented tolerance.
+[dependencies]
+serde_json = "1"
+# Pure-Rust JPEG decode (camera file) + encode (the saved document photo). Both are
+# pure Rust with a low MSRV, so the i686/x86_64 Win7 `-Zbuild-std` builds stay free
+# of a C toolchain (the same reason idbox-helper chose j2k-native + jpeg-encoder).
+zune-jpeg = "0.4"
+jpeg-encoder = "0.6"

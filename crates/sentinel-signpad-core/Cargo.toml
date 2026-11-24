@@ -1,0 +1,27 @@
+[package]
+name = "sentinel-signpad-core"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+
+# Pure, device-free logic of the reference `Asbt.SignPad.Plugin` (pv-winform
+# FormSignature / Topaz SigPlusNET): the "too small" acceptance rule, the signature
+# JPEG encoder, the texts, and the FormSignature state machine over a device seam.
+# No hardware, no FFI, no OS deps — so every host and both Win7 targets build + test
+# it. Pinned against the C# reference fixtures in tests/fixtures (the same PNG source
+# images + Framework ImageToByte outputs the C# tests use).
+#
+# Parity: the acceptance RULE (serialized_len < 1500, overhead 162) and the texts are
+# exact. The PNG/JPEG byte lengths are a different encoder than GDI+, so — as for the
+# Photo pipeline — the acceptance DECISION is pinned on the fixtures and the JPEG is
+# held to size/format + a measured pixel tolerance, not byte equality.
+[dependencies]
+# Pure-Rust PNG (decode the canvas/fixtures + encode for the acceptance length) and
+# JPEG (the result), both low-MSRV so the i686/x86_64 Win7 -Zbuild-std builds need no
+# C toolchain.
+png = "0.17"
+jpeg-encoder = "0.6"
+
+[dev-dependencies]
+# Decode JPEGs in the tests to compare pixels against the C# fixtures.
+zune-jpeg = "0.4"

@@ -1,0 +1,30 @@
+[package]
+name = "sentinel-idbox"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+
+# The idbox (Elyctis ID BOX) chip-reader plugin. The real device path FFIs the
+# x86-native ElyMRTD.dll / ElyRdrControl.dll (connect/establishBAC/getDG1/getDG2…)
+# and runs inside an x86 helper process; it will go behind a `device` feature
+# (needs the licensed vendor DLLs, an i686 target, and hardware). The default build
+# ships a FAKE device so the plugin + transport + registry path is testable now.
+# The `device` feature links the real hardware path for ReadDocument: the serial MRZ
+# scanner (serialport), the Elyctis COM-port lookup (winreg), the PC/SC antenna select
+# (pcsc, already linked for ReadChipUid), and the x86 chip-helper transport (a
+# CurrentUser named pipe via interprocess). Without it the plugin + its logic still
+# build and test everywhere; ReadDocument then answers "needs the device feature".
+[features]
+default = []
+device = ["dep:serialport", "dep:winreg", "dep:interprocess"]
+
+[dependencies]
+sentinel-plugin = { path = "../sentinel-plugin" }
+sentinel-idbox-core = { path = "../sentinel-idbox-core" }
+serde_json = "1"
+
+[target.'cfg(windows)'.dependencies]
+pcsc = "2"
+serialport = { version = "4.6.1", optional = true }
+winreg = { version = "0.52.0", optional = true }
+interprocess = { version = "2.2.2", optional = true }

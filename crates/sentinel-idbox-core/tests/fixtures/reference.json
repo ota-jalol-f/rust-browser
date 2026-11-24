@@ -1,0 +1,2464 @@
+{
+  "generatedBy": "tools/IdBox.Probe/fx-reference-probe.ps1",
+  "runtime": "4.0.30319.42000 x86",
+  "assemblies": {
+    "Asbt.IdBox.exe": "422601104A4D31A78723048C60F91927AB5A53DD8ADCCCA4350F142B3D953CB5",
+    "ElyMRTDdotNet.dll": "85739D1D8F3AD616AFB5896F72596918C09E347D53B03B24BD88C2C6C7CE5115",
+    "ElyMRTD.dll": "B91A8F03C99D0FB92BB7D85418674CA4C392B0C0F1243F0C1CCF77E014E88267"
+  },
+  "checksums": [
+    {
+      "input": "L898902C<3",
+      "ely": true
+    },
+    {
+      "input": "L898902C<8",
+      "ely": false
+    },
+    {
+      "input": "L898902C<<",
+      "ely": false
+    },
+    {
+      "input": "L898902C<A",
+      "ely": false
+    },
+    {
+      "input": "7408122",
+      "ely": true
+    },
+    {
+      "input": "7408127",
+      "ely": false
+    },
+    {
+      "input": "740812<",
+      "ely": false
+    },
+    {
+      "input": "740812A",
+      "ely": false
+    },
+    {
+      "input": "1204159",
+      "ely": true
+    },
+    {
+      "input": "1204157",
+      "ely": false
+    },
+    {
+      "input": "120415<",
+      "ely": false
+    },
+    {
+      "input": "120415A",
+      "ely": false
+    },
+    {
+      "input": "AA12345678",
+      "ely": true
+    },
+    {
+      "input": "AA12345672",
+      "ely": false
+    },
+    {
+      "input": "AA1234567<",
+      "ely": false
+    },
+    {
+      "input": "AA1234567A",
+      "ely": false
+    },
+    {
+      "input": "9001011",
+      "ely": true
+    },
+    {
+      "input": "9001013",
+      "ely": false
+    },
+    {
+      "input": "900101<",
+      "ely": false
+    },
+    {
+      "input": "900101A",
+      "ely": false
+    },
+    {
+      "input": "3001019",
+      "ely": true
+    },
+    {
+      "input": "3001010",
+      "ely": false
+    },
+    {
+      "input": "300101<",
+      "ely": false
+    },
+    {
+      "input": "300101A",
+      "ely": false
+    },
+    {
+      "input": "D231458907",
+      "ely": true
+    },
+    {
+      "input": "D231458904",
+      "ely": false
+    },
+    {
+      "input": "D23145890<",
+      "ely": false
+    },
+    {
+      "input": "D23145890A",
+      "ely": false
+    },
+    {
+      "input": "<<<<<<<<<0",
+      "ely": true
+    },
+    {
+      "input": "<<<<<<<<<7",
+      "ely": false
+    },
+    {
+      "input": "<<<<<<<<<<",
+      "ely": false
+    },
+    {
+      "input": "<<<<<<<<<A",
+      "ely": false
+    },
+    {
+      "input": "00000000",
+      "ely": true
+    },
+    {
+      "input": "00000008",
+      "ely": false
+    },
+    {
+      "input": "0000000<",
+      "ely": false
+    },
+    {
+      "input": "0000000A",
+      "ely": false
+    },
+    {
+      "input": "ZE184226B<<<<<1",
+      "ely": true
+    },
+    {
+      "input": "ZE184226B<<<<<2",
+      "ely": false
+    },
+    {
+      "input": "ZE184226B<<<<<<",
+      "ely": false
+    },
+    {
+      "input": "ZE184226B<<<<<A",
+      "ely": false
+    },
+    {
+      "input": "312345678901232",
+      "ely": true
+    },
+    {
+      "input": "312345678901239",
+      "ely": false
+    },
+    {
+      "input": "31234567890123<",
+      "ely": false
+    },
+    {
+      "input": "31234567890123A",
+      "ely": false
+    },
+    {
+      "input": "00<NNS8",
+      "ely": true
+    },
+    {
+      "input": "00<NNS0",
+      "ely": false
+    },
+    {
+      "input": "00<NNS<",
+      "ely": false
+    },
+    {
+      "input": "00<NNSA",
+      "ely": false
+    },
+    {
+      "input": "62",
+      "ely": true
+    },
+    {
+      "input": "69",
+      "ely": false
+    },
+    {
+      "input": "6<",
+      "ely": false
+    },
+    {
+      "input": "6A",
+      "ely": false
+    },
+    {
+      "input": "ACY<FZ6R239TAB5",
+      "ely": true
+    },
+    {
+      "input": "ACY<FZ6R239TAB7",
+      "ely": false
+    },
+    {
+      "input": "ACY<FZ6R239TAB<",
+      "ely": false
+    },
+    {
+      "input": "ACY<FZ6R239TABA",
+      "ely": false
+    },
+    {
+      "input": "7I03",
+      "ely": true
+    },
+    {
+      "input": "7I04",
+      "ely": false
+    },
+    {
+      "input": "7I0<",
+      "ely": false
+    },
+    {
+      "input": "7I0A",
+      "ely": false
+    },
+    {
+      "input": "FDVIB7EAS7",
+      "ely": true
+    },
+    {
+      "input": "FDVIB7EAS2",
+      "ely": false
+    },
+    {
+      "input": "FDVIB7EAS<",
+      "ely": false
+    },
+    {
+      "input": "FDVIB7EASA",
+      "ely": false
+    },
+    {
+      "input": "EJ8B0BNW<8",
+      "ely": true
+    },
+    {
+      "input": "EJ8B0BNW<1",
+      "ely": false
+    },
+    {
+      "input": "EJ8B0BNW<<",
+      "ely": false
+    },
+    {
+      "input": "EJ8B0BNW<A",
+      "ely": false
+    },
+    {
+      "input": "C9J0",
+      "ely": true
+    },
+    {
+      "input": "C9J1",
+      "ely": false
+    },
+    {
+      "input": "C9J<",
+      "ely": false
+    },
+    {
+      "input": "C9JA",
+      "ely": false
+    },
+    {
+      "input": "NV4",
+      "ely": true
+    },
+    {
+      "input": "NV9",
+      "ely": false
+    },
+    {
+      "input": "NV<",
+      "ely": false
+    },
+    {
+      "input": "NVA",
+      "ely": false
+    },
+    {
+      "input": "0Z2RE3O16P5X1",
+      "ely": true
+    },
+    {
+      "input": "0Z2RE3O16P5X4",
+      "ely": false
+    },
+    {
+      "input": "0Z2RE3O16P5X<",
+      "ely": false
+    },
+    {
+      "input": "0Z2RE3O16P5XA",
+      "ely": false
+    },
+    {
+      "input": "BY9",
+      "ely": true
+    },
+    {
+      "input": "BY5",
+      "ely": false
+    },
+    {
+      "input": "BY<",
+      "ely": false
+    },
+    {
+      "input": "BYA",
+      "ely": false
+    },
+    {
+      "input": "6YTBRK1",
+      "ely": true
+    },
+    {
+      "input": "6YTBRK4",
+      "ely": false
+    },
+    {
+      "input": "6YTBRK<",
+      "ely": false
+    },
+    {
+      "input": "6YTBRKA",
+      "ely": false
+    },
+    {
+      "input": "48",
+      "ely": true
+    },
+    {
+      "input": "41",
+      "ely": false
+    },
+    {
+      "input": "4<",
+      "ely": false
+    },
+    {
+      "input": "4A",
+      "ely": false
+    },
+    {
+      "input": "JUUH44",
+      "ely": true
+    },
+    {
+      "input": "JUUH40",
+      "ely": false
+    },
+    {
+      "input": "JUUH4<",
+      "ely": false
+    },
+    {
+      "input": "JUUH4A",
+      "ely": false
+    },
+    {
+      "input": "5QCOM0E7",
+      "ely": true
+    },
+    {
+      "input": "5QCOM0E2",
+      "ely": false
+    },
+    {
+      "input": "5QCOM0E<",
+      "ely": false
+    },
+    {
+      "input": "5QCOM0EA",
+      "ely": false
+    },
+    {
+      "input": "Q2",
+      "ely": true
+    },
+    {
+      "input": "Q5",
+      "ely": false
+    },
+    {
+      "input": "Q<",
+      "ely": false
+    },
+    {
+      "input": "QA",
+      "ely": false
+    },
+    {
+      "input": "L4WT<7EO1",
+      "ely": true
+    },
+    {
+      "input": "L4WT<7EO2",
+      "ely": false
+    },
+    {
+      "input": "L4WT<7EO<",
+      "ely": false
+    },
+    {
+      "input": "L4WT<7EOA",
+      "ely": false
+    },
+    {
+      "input": "OR5UNQY8G7",
+      "ely": true
+    },
+    {
+      "input": "OR5UNQY8G1",
+      "ely": false
+    },
+    {
+      "input": "OR5UNQY8G<",
+      "ely": false
+    },
+    {
+      "input": "OR5UNQY8GA",
+      "ely": false
+    },
+    {
+      "input": "J4UC9<GAYLX1Y7",
+      "ely": true
+    },
+    {
+      "input": "J4UC9<GAYLX1Y2",
+      "ely": false
+    },
+    {
+      "input": "J4UC9<GAYLX1Y<",
+      "ely": false
+    },
+    {
+      "input": "J4UC9<GAYLX1YA",
+      "ely": false
+    },
+    {
+      "input": "RG7",
+      "ely": true
+    },
+    {
+      "input": "RG0",
+      "ely": false
+    },
+    {
+      "input": "RG<",
+      "ely": false
+    },
+    {
+      "input": "RGA",
+      "ely": false
+    },
+    {
+      "input": "OLLMPFW0",
+      "ely": true
+    },
+    {
+      "input": "OLLMPFW3",
+      "ely": false
+    },
+    {
+      "input": "OLLMPFW<",
+      "ely": false
+    },
+    {
+      "input": "OLLMPFWA",
+      "ely": false
+    },
+    {
+      "input": "<A709Z30",
+      "ely": true
+    },
+    {
+      "input": "<A709Z38",
+      "ely": false
+    },
+    {
+      "input": "<A709Z3<",
+      "ely": false
+    },
+    {
+      "input": "<A709Z3A",
+      "ely": false
+    },
+    {
+      "input": "FH022YT46RC8X47",
+      "ely": true
+    },
+    {
+      "input": "FH022YT46RC8X41",
+      "ely": false
+    },
+    {
+      "input": "FH022YT46RC8X4<",
+      "ely": false
+    },
+    {
+      "input": "FH022YT46RC8X4A",
+      "ely": false
+    },
+    {
+      "input": "CG<KX6T4Z8X2",
+      "ely": true
+    },
+    {
+      "input": "CG<KX6T4Z8X6",
+      "ely": false
+    },
+    {
+      "input": "CG<KX6T4Z8X<",
+      "ely": false
+    },
+    {
+      "input": "CG<KX6T4Z8XA",
+      "ely": false
+    },
+    {
+      "input": "<JLZX53S52PZ124",
+      "ely": true
+    },
+    {
+      "input": "<JLZX53S52PZ127",
+      "ely": false
+    },
+    {
+      "input": "<JLZX53S52PZ12<",
+      "ely": false
+    },
+    {
+      "input": "<JLZX53S52PZ12A",
+      "ely": false
+    },
+    {
+      "input": "Q9CY3GI0",
+      "ely": true
+    },
+    {
+      "input": "Q9CY3GI8",
+      "ely": false
+    },
+    {
+      "input": "Q9CY3GI<",
+      "ely": false
+    },
+    {
+      "input": "Q9CY3GIA",
+      "ely": false
+    },
+    {
+      "input": "T<OFDXOB4FZU9",
+      "ely": true
+    },
+    {
+      "input": "T<OFDXOB4FZU2",
+      "ely": false
+    },
+    {
+      "input": "T<OFDXOB4FZU<",
+      "ely": false
+    },
+    {
+      "input": "T<OFDXOB4FZUA",
+      "ely": false
+    },
+    {
+      "input": "U2QD5L7L1",
+      "ely": true
+    },
+    {
+      "input": "U2QD5L7L4",
+      "ely": false
+    },
+    {
+      "input": "U2QD5L7L<",
+      "ely": false
+    },
+    {
+      "input": "U2QD5L7LA",
+      "ely": false
+    },
+    {
+      "input": "LU6OC5WK4314",
+      "ely": true
+    },
+    {
+      "input": "LU6OC5WK4312",
+      "ely": false
+    },
+    {
+      "input": "LU6OC5WK431<",
+      "ely": false
+    },
+    {
+      "input": "LU6OC5WK431A",
+      "ely": false
+    },
+    {
+      "input": "30I006R4",
+      "ely": true
+    },
+    {
+      "input": "30I006R1",
+      "ely": false
+    },
+    {
+      "input": "30I006R<",
+      "ely": false
+    },
+    {
+      "input": "30I006RA",
+      "ely": false
+    },
+    {
+      "input": "WTBI87GXV959",
+      "ely": true
+    },
+    {
+      "input": "WTBI87GXV951",
+      "ely": false
+    },
+    {
+      "input": "WTBI87GXV95<",
+      "ely": false
+    },
+    {
+      "input": "WTBI87GXV95A",
+      "ely": false
+    },
+    {
+      "input": "T2Y5K8",
+      "ely": true
+    },
+    {
+      "input": "T2Y5K1",
+      "ely": false
+    },
+    {
+      "input": "T2Y5K<",
+      "ely": false
+    },
+    {
+      "input": "T2Y5KA",
+      "ely": false
+    },
+    {
+      "input": "VUQUL63E2C1",
+      "ely": true
+    },
+    {
+      "input": "VUQUL63E2C3",
+      "ely": false
+    },
+    {
+      "input": "VUQUL63E2C<",
+      "ely": false
+    },
+    {
+      "input": "VUQUL63E2CA",
+      "ely": false
+    },
+    {
+      "input": "NFQ2",
+      "ely": true
+    },
+    {
+      "input": "NFQ7",
+      "ely": false
+    },
+    {
+      "input": "NFQ<",
+      "ely": false
+    },
+    {
+      "input": "NFQA",
+      "ely": false
+    },
+    {
+      "input": "VF2SYQG0",
+      "ely": true
+    },
+    {
+      "input": "VF2SYQG4",
+      "ely": false
+    },
+    {
+      "input": "VF2SYQG<",
+      "ely": false
+    },
+    {
+      "input": "VF2SYQGA",
+      "ely": false
+    },
+    {
+      "input": "9Z69P7ABNP0",
+      "ely": true
+    },
+    {
+      "input": "9Z69P7ABNP8",
+      "ely": false
+    },
+    {
+      "input": "9Z69P7ABNP<",
+      "ely": false
+    },
+    {
+      "input": "9Z69P7ABNPA",
+      "ely": false
+    },
+    {
+      "input": "L7",
+      "ely": true
+    },
+    {
+      "input": "L4",
+      "ely": false
+    },
+    {
+      "input": "L<",
+      "ely": false
+    },
+    {
+      "input": "LA",
+      "ely": false
+    },
+    {
+      "input": "LCHGP4EEQH4O71",
+      "ely": true
+    },
+    {
+      "input": "LCHGP4EEQH4O72",
+      "ely": false
+    },
+    {
+      "input": "LCHGP4EEQH4O7<",
+      "ely": false
+    },
+    {
+      "input": "LCHGP4EEQH4O7A",
+      "ely": false
+    },
+    {
+      "input": "X6NXIO7R5Q8OH21",
+      "ely": true
+    },
+    {
+      "input": "X6NXIO7R5Q8OH23",
+      "ely": false
+    },
+    {
+      "input": "X6NXIO7R5Q8OH2<",
+      "ely": false
+    },
+    {
+      "input": "X6NXIO7R5Q8OH2A",
+      "ely": false
+    },
+    {
+      "input": "48",
+      "ely": true
+    },
+    {
+      "input": "49",
+      "ely": false
+    },
+    {
+      "input": "4<",
+      "ely": false
+    },
+    {
+      "input": "4A",
+      "ely": false
+    },
+    {
+      "input": "EFTJDVMIXBUSRC6",
+      "ely": true
+    },
+    {
+      "input": "EFTJDVMIXBUSRC2",
+      "ely": false
+    },
+    {
+      "input": "EFTJDVMIXBUSRC<",
+      "ely": false
+    },
+    {
+      "input": "EFTJDVMIXBUSRCA",
+      "ely": false
+    },
+    {
+      "input": "",
+      "ely": false
+    },
+    {
+      "input": "0",
+      "ely": true
+    },
+    {
+      "input": "<",
+      "ely": false
+    },
+    {
+      "input": "a",
+      "ely": false
+    },
+    {
+      "input": "l898902c<3",
+      "ely": true
+    },
+    {
+      "input": "L898902C 3",
+      "ely": false
+    },
+    {
+      "input": "L898902C_3",
+      "ely": true
+    },
+    {
+      "input": "12345678901234567890123456789",
+      "ely": false
+    }
+  ],
+  "mrz": [
+    {
+      "name": "td3-crlf",
+      "input": "P<UZBTOSHMATOV<<ALISHER<<<<<<<<<<<<<<<<<<<<<\r\nAA12345678UZB9001011M30010193123456789012324\r\n",
+      "line1": "P<UZBTOSHMATOV<<ALISHER<<<<<<<<<<<<<<<<<<<<<",
+      "line2": "AA12345678UZB9001011M30010193123456789012324",
+      "line3": "",
+      "mrzInfo": "AA1234567890010113001019",
+      "checksum": true
+    },
+    {
+      "name": "td3-cr-only",
+      "input": "P<UZBTOSHMATOV<<ALISHER<<<<<<<<<<<<<<<<<<<<<\rAA12345678UZB9001011M30010193123456789012324\r",
+      "line1": "P<UZBTOSHMATOV<<ALISHER<<<<<<<<<<<<<<<<<<<<<",
+      "line2": "AA12345678UZB9001011M30010193123456789012324",
+      "line3": "",
+      "mrzInfo": "AA1234567890010113001019",
+      "checksum": true
+    },
+    {
+      "name": "td3-no-trailer",
+      "input": "P<UZBTOSHMATOV<<ALISHER<<<<<<<<<<<<<<<<<<<<<\r\nAA12345678UZB9001011M30010193123456789012324",
+      "line1": "P<UZBTOSHMATOV<<ALISHER<<<<<<<<<<<<<<<<<<<<<",
+      "line2": "AA12345678UZB9001011M30010193123456789012324",
+      "line3": "",
+      "mrzInfo": "AA1234567890010113001019",
+      "checksum": true
+    },
+    {
+      "name": "td3-nul-padding",
+      "input": "P<UZBTOSHMATOV<<ALISHER<<<<<<<<<<<<<<<<<<<<<\r\nAA12345678UZB9001011M30010193123456789012324\r\n\u0000\u0000",
+      "line1": "P<UZBTOSHMATOV<<ALISHER<<<<<<<<<<<<<<<<<<<<<",
+      "line2": "AA12345678UZB9001011M30010193123456789012324",
+      "line3": "",
+      "mrzInfo": "AA1234567890010113001019",
+      "checksum": true
+    },
+    {
+      "name": "td3-female",
+      "input": "P<UZBKARIMOVA<<DILNOZA<SHAVKATOVNA<<<<<<<<<<\r\nFA76543211UZB0512310F35061566311205987654346\r\n",
+      "line1": "P<UZBKARIMOVA<<DILNOZA<SHAVKATOVNA<<<<<<<<<<",
+      "line2": "FA76543211UZB0512310F35061566311205987654346",
+      "line3": "",
+      "mrzInfo": "FA7654321105123103506156",
+      "checksum": true
+    },
+    {
+      "name": "td3-icao-example",
+      "input": "P<UTOERIKSSON<<ANNA<MARIA<<<<<<<<<<<<<<<<<<<\r\nL898902C36UTO7408122F1204159ZE184226B<<<<<10\r\n",
+      "line1": "P<UTOERIKSSON<<ANNA<MARIA<<<<<<<<<<<<<<<<<<<",
+      "line2": "L898902C36UTO7408122F1204159ZE184226B<<<<<10",
+      "line3": "",
+      "mrzInfo": "L898902C3674081221204159",
+      "checksum": true
+    },
+    {
+      "name": "td3-bad-docno-digit",
+      "input": "P<UZBTOSHMATOV<<ALISHER<<<<<<<<<<<<<<<<<<<<<\r\nAA12345679UZB9001011M30010193123456789012324\r\n",
+      "line1": "P<UZBTOSHMATOV<<ALISHER<<<<<<<<<<<<<<<<<<<<<",
+      "line2": "AA12345679UZB9001011M30010193123456789012324",
+      "line3": "",
+      "mrzInfo": "AA1234567990010113001019",
+      "checksum": false
+    },
+    {
+      "name": "td3-sex-N",
+      "input": "PAUZBSOBIROV<<JAMSHID<<<<<<<<<<<<<<<<<<<<<<<\r\nAB00000014UZB8507077N27070719850707000000026\r\n",
+      "line1": "PAUZBSOBIROV<<JAMSHID<<<<<<<<<<<<<<<<<<<<<<<",
+      "line2": "AB00000014UZB8507077N27070719850707000000026",
+      "line3": "",
+      "mrzInfo": "AB0000001485070772707071",
+      "checksum": true
+    },
+    {
+      "name": "td3-filler-pinpp",
+      "input": "P<UZBYUSUPOV<<BOBUR<<<<<<<<<<<<<<<<<<<<<<<<<\r\nAC55555551UZB1002034M2902038<<<<<<<<<<<<<<04\r\n",
+      "line1": "P<UZBYUSUPOV<<BOBUR<<<<<<<<<<<<<<<<<<<<<<<<<",
+      "line2": "AC55555551UZB1002034M2902038<<<<<<<<<<<<<<04",
+      "line3": "",
+      "mrzInfo": "AC5555555110020342902038",
+      "checksum": true
+    },
+    {
+      "name": "td3-short-line2",
+      "input": "P<UZBTOSHMATOV<<ALISHER<<<<<<<<<<<<<<<<<<<<<\r\nAA12345678UZB9001011\r\n",
+      "line1": "P<UZBTOSHMATOV<<ALISHER<<<<<<<<<<<<<<<<<<<<<",
+      "line2": "AA12345678UZB9001011",
+      "line3": "",
+      "mrzInfo": "TOSHMATOV<AA1234578UZB90",
+      "checksum": false
+    },
+    {
+      "name": "td1-crlf",
+      "input": "IDUZBAD1234567741508850123456<\r\n8508155F3208140UZB<<<<<<<<<<<6\r\nRASULOVA<<MALIKA<<<<<<<<<<<<<<\r\n",
+      "line1": "IDUZBAD1234567741508850123456<",
+      "line2": "8508155F3208140UZB<<<<<<<<<<<6",
+      "line3": "RASULOVA<<MALIKA<<<<<<<<<<<<<<",
+      "mrzInfo": "AD1234567785081553208140",
+      "checksum": true
+    },
+    {
+      "name": "td1-male",
+      "input": "IDUZBAE7777777330101900000000<\r\n9001011M3012316UZB<<<<<<<<<<<2\r\nNAZAROV<<AZIZ<<<<<<<<<<<<<<<<<\r\n",
+      "line1": "IDUZBAE7777777330101900000000<",
+      "line2": "9001011M3012316UZB<<<<<<<<<<<2",
+      "line3": "NAZAROV<<AZIZ<<<<<<<<<<<<<<<<<",
+      "mrzInfo": "AE7777777390010113012316",
+      "checksum": true
+    },
+    {
+      "name": "td1-cr-only",
+      "input": "IDUZBAD1234567741508850123456<\r8508155F3208140UZB<<<<<<<<<<<6\rRASULOVA<<MALIKA<<<<<<<<<<<<<<\r",
+      "line1": "IDUZBAD1234567741508850123456<",
+      "line2": "8508155F3208140UZB<<<<<<<<<<<6",
+      "line3": "RASULOVA<<MALIKA<<<<<<<<<<<<<<",
+      "mrzInfo": "AD1234567785081553208140",
+      "checksum": true
+    },
+    {
+      "name": "single-line",
+      "input": "P<UZBTOSHMATOV<<ALISHER<<<<<<<<<<<<<<<<<<<<<\r\n",
+      "line1": "P<UZBTOSHMATOV<<ALISHER<<<<<<<<<<<<<<<<<<<<<",
+      "line2": "",
+      "line3": "",
+      "mrzInfo": null,
+      "checksum": false
+    },
+    {
+      "name": "single-line-no-cr",
+      "input": "P<UZBTOSHMATOV<<ALISHER<<<<<<<<<<<<<<<<<<<<<",
+      "exception": "System.IndexOutOfRangeException"
+    },
+    {
+      "name": "empty",
+      "input": "",
+      "exception": "System.IndexOutOfRangeException"
+    },
+    {
+      "name": "garbage",
+      "input": "HELLO\r\nWORLD\r\n",
+      "line1": "HELLO",
+      "line2": "WORLD",
+      "line3": "",
+      "mrzInfo": null,
+      "checksum": false
+    }
+  ],
+  "cmrzString": [
+    {
+      "name": "td3",
+      "input": "P<UZBTOSHMATOV<<ALISHER<<<<<<<<<<<<<<<<<<<<<AA12345678UZB9001011M30010193123456789012324",
+      "result": {
+        "Additional": null,
+        "BirthDate": "01.01.1990",
+        "DocumentNumber": "AA1234567",
+        "DocumentType": "P",
+        "ExpiryDate": "01.01.2030",
+        "Issuer": null,
+        "Nationality": "UZB",
+        "Citizenship": "UZB",
+        "Pinpp": "31234567890123",
+        "Surname": "TOSHMATOV",
+        "Name": "ALISHER",
+        "Sex": "M",
+        "Line1": "P<UZBTOSHMATOV<<ALISHER<<<<<<<<<<<<<<<<<<<<<",
+        "Line2": "AA12345678UZB9001011M30010193123456789012324",
+        "Line3": null,
+        "InformationFrom": 1
+      }
+    },
+    {
+      "name": "td3-female",
+      "input": "P<UZBKARIMOVA<<DILNOZA<SHAVKATOVNA<<<<<<<<<<FA76543211UZB0512310F35061566311205987654346",
+      "result": {
+        "Additional": null,
+        "BirthDate": "31.12.2005",
+        "DocumentNumber": "FA7654321",
+        "DocumentType": "P",
+        "ExpiryDate": "15.06.2035",
+        "Issuer": null,
+        "Nationality": "UZB",
+        "Citizenship": "UZB",
+        "Pinpp": "63112059876543",
+        "Surname": "KARIMOVA",
+        "Name": "DILNOZA",
+        "Sex": "F",
+        "Line1": "P<UZBKARIMOVA<<DILNOZA<SHAVKATOVNA<<<<<<<<<<",
+        "Line2": "FA76543211UZB0512310F35061566311205987654346",
+        "Line3": null,
+        "InformationFrom": 1
+      }
+    },
+    {
+      "name": "td3-icao-example",
+      "input": "P<UTOERIKSSON<<ANNA<MARIA<<<<<<<<<<<<<<<<<<<L898902C36UTO7408122F1204159ZE184226B<<<<<10",
+      "result": {
+        "Additional": null,
+        "BirthDate": "12.08.2074",
+        "DocumentNumber": "L898902C3",
+        "DocumentType": "P",
+        "ExpiryDate": "15.04.2012",
+        "Issuer": null,
+        "Nationality": "UTO",
+        "Citizenship": "UTO",
+        "Pinpp": "ZE184226B<<<<<",
+        "Surname": "ERIKSSON",
+        "Name": "ANNA",
+        "Sex": "F",
+        "Line1": "P<UTOERIKSSON<<ANNA<MARIA<<<<<<<<<<<<<<<<<<<",
+        "Line2": "L898902C36UTO7408122F1204159ZE184226B<<<<<10",
+        "Line3": null,
+        "InformationFrom": 1
+      }
+    },
+    {
+      "name": "td3-sex-N",
+      "input": "PAUZBSOBIROV<<JAMSHID<<<<<<<<<<<<<<<<<<<<<<<AB00000014UZB8507077N27070719850707000000026",
+      "result": {
+        "Additional": null,
+        "BirthDate": "07.07.2085",
+        "DocumentNumber": "AB0000001",
+        "DocumentType": "PA",
+        "ExpiryDate": "07.07.2027",
+        "Issuer": null,
+        "Nationality": "UZB",
+        "Citizenship": "UZB",
+        "Pinpp": "98507070000000",
+        "Surname": "SOBIROV",
+        "Name": "JAMSHID",
+        "Sex": "M",
+        "Line1": "PAUZBSOBIROV<<JAMSHID<<<<<<<<<<<<<<<<<<<<<<<",
+        "Line2": "AB00000014UZB8507077N27070719850707000000026",
+        "Line3": null,
+        "InformationFrom": 1
+      }
+    },
+    {
+      "name": "td3-filler-pinpp",
+      "input": "P<UZBYUSUPOV<<BOBUR<<<<<<<<<<<<<<<<<<<<<<<<<AC55555551UZB1002034M2902038<<<<<<<<<<<<<<04",
+      "result": {
+        "Additional": null,
+        "BirthDate": "03.02.1910",
+        "DocumentNumber": "AC5555555",
+        "DocumentType": "P",
+        "ExpiryDate": "03.02.2029",
+        "Issuer": null,
+        "Nationality": "UZB",
+        "Citizenship": "UZB",
+        "Pinpp": "<<<<<<<<<<<<<<",
+        "Surname": "YUSUPOV",
+        "Name": "BOBUR",
+        "Sex": "M",
+        "Line1": "P<UZBYUSUPOV<<BOBUR<<<<<<<<<<<<<<<<<<<<<<<<<",
+        "Line2": "AC55555551UZB1002034M2902038<<<<<<<<<<<<<<04",
+        "Line3": null,
+        "InformationFrom": 1
+      }
+    },
+    {
+      "name": "td3-lowercase-spaces",
+      "input": "p<uzbtoshm atov<<alisher<<<<<<<<<<<<<<<<<<<<<aa123\r\n45678uzb9001011m30010193123456789012324",
+      "result": {
+        "Additional": null,
+        "BirthDate": "01.01.1990",
+        "DocumentNumber": "AA1234567",
+        "DocumentType": "P",
+        "ExpiryDate": "01.01.2030",
+        "Issuer": null,
+        "Nationality": "UZB",
+        "Citizenship": "UZB",
+        "Pinpp": "31234567890123",
+        "Surname": "TOSHMATOV",
+        "Name": "ALISHER",
+        "Sex": "M",
+        "Line1": "P<UZBTOSHMATOV<<ALISHER<<<<<<<<<<<<<<<<<<<<<",
+        "Line2": "AA12345678UZB9001011M30010193123456789012324",
+        "Line3": null,
+        "InformationFrom": 1
+      }
+    },
+    {
+      "name": "td3-letter-in-birth",
+      "input": "P<UZBTOSHMATOV<<ALISHER<<<<<<<<<<<<<<<<<<<<<AA12345678UZB9O01O11M30010193123456789012324",
+      "result": {
+        "Additional": null,
+        "BirthDate": "01.01.1990",
+        "DocumentNumber": "AA1234567",
+        "DocumentType": "P",
+        "ExpiryDate": "01.01.2030",
+        "Issuer": null,
+        "Nationality": "UZB",
+        "Citizenship": "UZB",
+        "Pinpp": "31234567890123",
+        "Surname": "TOSHMATOV",
+        "Name": "ALISHER",
+        "Sex": "M",
+        "Line1": "P<UZBTOSHMATOV<<ALISHER<<<<<<<<<<<<<<<<<<<<<",
+        "Line2": "AA12345678UZB9O01O11M30010193123456789012324",
+        "Line3": null,
+        "InformationFrom": 1
+      }
+    },
+    {
+      "name": "td3-letter-in-expiry",
+      "input": "P<UZBTOSHMATOV<<ALISHER<<<<<<<<<<<<<<<<<<<<<AA12345678UZB9001011M3OA1O193123456789012324",
+      "result": {
+        "Additional": null,
+        "BirthDate": "01.01.1990",
+        "DocumentNumber": "AA1234567",
+        "DocumentType": "P",
+        "ExpiryDate": "",
+        "Issuer": null,
+        "Nationality": "UZB",
+        "Citizenship": "UZB",
+        "Pinpp": "31234567890123",
+        "Surname": "TOSHMATOV",
+        "Name": "ALISHER",
+        "Sex": "M",
+        "Line1": "P<UZBTOSHMATOV<<ALISHER<<<<<<<<<<<<<<<<<<<<<",
+        "Line2": "AA12345678UZB9001011M3OA1O193123456789012324",
+        "Line3": null,
+        "InformationFrom": 1
+      }
+    },
+    {
+      "name": "td3-bad-sex-male-pinpp",
+      "input": "P<UZBTOSHMATOV<<ALISHER<<<<<<<<<<<<<<<<<<<<<AA12345678UZB9001011X30010193123456789012324",
+      "result": {
+        "Additional": null,
+        "BirthDate": "01.01.1990",
+        "DocumentNumber": "AA1234567",
+        "DocumentType": "P",
+        "ExpiryDate": "01.01.2030",
+        "Issuer": null,
+        "Nationality": "UZB",
+        "Citizenship": "UZB",
+        "Pinpp": "31234567890123",
+        "Surname": "TOSHMATOV",
+        "Name": "ALISHER",
+        "Sex": "M",
+        "Line1": "P<UZBTOSHMATOV<<ALISHER<<<<<<<<<<<<<<<<<<<<<",
+        "Line2": "AA12345678UZB9001011X30010193123456789012324",
+        "Line3": null,
+        "InformationFrom": 1
+      }
+    },
+    {
+      "name": "td3-bad-sex-female-pinpp",
+      "input": "P<UZBKARIMOVA<<DILNOZA<SHAVKATOVNA<<<<<<<<<<FA76543211UZB0512310X35061566311205987654346",
+      "result": {
+        "Additional": null,
+        "BirthDate": "31.12.2005",
+        "DocumentNumber": "FA7654321",
+        "DocumentType": "P",
+        "ExpiryDate": "15.06.2035",
+        "Issuer": null,
+        "Nationality": "UZB",
+        "Citizenship": "UZB",
+        "Pinpp": "63112059876543",
+        "Surname": "KARIMOVA",
+        "Name": "DILNOZA",
+        "Sex": "F",
+        "Line1": "P<UZBKARIMOVA<<DILNOZA<SHAVKATOVNA<<<<<<<<<<",
+        "Line2": "FA76543211UZB0512310X35061566311205987654346",
+        "Line3": null,
+        "InformationFrom": 1
+      }
+    },
+    {
+      "name": "td1",
+      "input": "IDUZBAD1234567741508850123456<8508155F3208140UZB<<<<<<<<<<<6RASULOVA<<MALIKA<<<<<<<<<<<<<<",
+      "exception": "System.ArgumentOutOfRangeException",
+      "message": "Specified argument was out of the range of valid values."
+    },
+    {
+      "name": "td1-male",
+      "input": "IDUZBAE7777777330101900000000<9001011M3012316UZB<<<<<<<<<<<2NAZAROV<<AZIZ<<<<<<<<<<<<<<<<<",
+      "exception": "System.ArgumentOutOfRangeException",
+      "message": "Specified argument was out of the range of valid values."
+    },
+    {
+      "name": "length-87",
+      "input": "P<UZBTOSHMATOV<<ALISHER<<<<<<<<<<<<<<<<<<<<<AA12345678UZB9001011M3001019312345678901232",
+      "exception": "Asbt.Models.AsbtException",
+      "message": "MRZ ҳато берилган",
+      "comment": "Берилган MRZ узунлиги 87 ҳато",
+      "answereId": 2
+    },
+    {
+      "name": "empty",
+      "input": "",
+      "exception": "Asbt.Models.AsbtException",
+      "message": "MRZ ҳато берилган",
+      "comment": "Берилган MRZ узунлиги 0 ҳато",
+      "answereId": 2
+    }
+  ],
+  "cmrzChip": [
+    {
+      "name": "pinpp-3",
+      "birthDate": "12/08/74",
+      "expiryDate": "15/04/32",
+      "pinpp": "31208740000000",
+      "result": {
+        "Additional": "",
+        "BirthDate": "12.08.1974",
+        "DocumentNumber": "AA1234567",
+        "DocumentType": "P",
+        "ExpiryDate": "15.04.2032",
+        "Issuer": "Uzbekistan",
+        "Nationality": "Uzbekistan",
+        "Citizenship": null,
+        "Pinpp": "31208740000000",
+        "Surname": "TOSHMATOV",
+        "Name": "ALISHER",
+        "Sex": "M",
+        "Line1": "P<UZBTOSHMATOV<<ALISHER<<<<<<<<<<<<<<<<<<<<<",
+        "Line2": "AA12345678UZB9001011M30010193123456789012324",
+        "Line3": "",
+        "InformationFrom": 0
+      }
+    },
+    {
+      "name": "pinpp-1",
+      "birthDate": "01/01/99",
+      "expiryDate": "01/01/30",
+      "pinpp": "10101990000000",
+      "result": {
+        "Additional": "",
+        "BirthDate": "01.01.1899",
+        "DocumentNumber": "AA1234567",
+        "DocumentType": "P",
+        "ExpiryDate": "01.01.2030",
+        "Issuer": "Uzbekistan",
+        "Nationality": "Uzbekistan",
+        "Citizenship": null,
+        "Pinpp": "10101990000000",
+        "Surname": "TOSHMATOV",
+        "Name": "ALISHER",
+        "Sex": "M",
+        "Line1": "P<UZBTOSHMATOV<<ALISHER<<<<<<<<<<<<<<<<<<<<<",
+        "Line2": "AA12345678UZB9001011M30010193123456789012324",
+        "Line3": "",
+        "InformationFrom": 0
+      }
+    },
+    {
+      "name": "pinpp-5",
+      "birthDate": "31/12/05",
+      "expiryDate": "30/12/35",
+      "pinpp": "53112050000000",
+      "result": {
+        "Additional": "",
+        "BirthDate": "31.12.2005",
+        "DocumentNumber": "AA1234567",
+        "DocumentType": "P",
+        "ExpiryDate": "30.12.2035",
+        "Issuer": "Uzbekistan",
+        "Nationality": "Uzbekistan",
+        "Citizenship": null,
+        "Pinpp": "53112050000000",
+        "Surname": "TOSHMATOV",
+        "Name": "ALISHER",
+        "Sex": "M",
+        "Line1": "P<UZBTOSHMATOV<<ALISHER<<<<<<<<<<<<<<<<<<<<<",
+        "Line2": "AA12345678UZB9001011M30010193123456789012324",
+        "Line3": "",
+        "InformationFrom": 0
+      }
+    },
+    {
+      "name": "pinpp-6",
+      "birthDate": "28/02/10",
+      "expiryDate": "27/02/30",
+      "pinpp": "62802100000000",
+      "result": {
+        "Additional": "",
+        "BirthDate": "28.02.2010",
+        "DocumentNumber": "AA1234567",
+        "DocumentType": "P",
+        "ExpiryDate": "27.02.2030",
+        "Issuer": "Uzbekistan",
+        "Nationality": "Uzbekistan",
+        "Citizenship": null,
+        "Pinpp": "62802100000000",
+        "Surname": "TOSHMATOV",
+        "Name": "ALISHER",
+        "Sex": "M",
+        "Line1": "P<UZBTOSHMATOV<<ALISHER<<<<<<<<<<<<<<<<<<<<<",
+        "Line2": "AA12345678UZB9001011M30010193123456789012324",
+        "Line3": "",
+        "InformationFrom": 0
+      }
+    },
+    {
+      "name": "pinpp-filler-yy10",
+      "birthDate": "10/03/85",
+      "expiryDate": "09/03/31",
+      "pinpp": "<<<<<<<<<<<<<<",
+      "result": {
+        "Additional": "",
+        "BirthDate": "10.03.1985",
+        "DocumentNumber": "AA1234567",
+        "DocumentType": "P",
+        "ExpiryDate": "09.03.2031",
+        "Issuer": "Uzbekistan",
+        "Nationality": "Uzbekistan",
+        "Citizenship": null,
+        "Pinpp": "<<<<<<<<<<<<<<",
+        "Surname": "TOSHMATOV",
+        "Name": "ALISHER",
+        "Sex": "M",
+        "Line1": "P<UZBTOSHMATOV<<ALISHER<<<<<<<<<<<<<<<<<<<<<",
+        "Line2": "AA12345678UZB9001011M30010193123456789012324",
+        "Line3": "",
+        "InformationFrom": 0
+      }
+    },
+    {
+      "name": "pinpp-filler-yy85",
+      "birthDate": "85/03/10",
+      "expiryDate": "09/03/31",
+      "pinpp": "<<<<<<<<<<<<<<",
+      "result": {
+        "Additional": "",
+        "BirthDate": "85.03.2010",
+        "DocumentNumber": "AA1234567",
+        "DocumentType": "P",
+        "ExpiryDate": "09.03.2031",
+        "Issuer": "Uzbekistan",
+        "Nationality": "Uzbekistan",
+        "Citizenship": null,
+        "Pinpp": "<<<<<<<<<<<<<<",
+        "Surname": "TOSHMATOV",
+        "Name": "ALISHER",
+        "Sex": "M",
+        "Line1": "P<UZBTOSHMATOV<<ALISHER<<<<<<<<<<<<<<<<<<<<<",
+        "Line2": "AA12345678UZB9001011M30010193123456789012324",
+        "Line3": "",
+        "InformationFrom": 0
+      }
+    },
+    {
+      "name": "pinpp-filler-letters",
+      "birthDate": "AB/03/10",
+      "expiryDate": "09/03/31",
+      "pinpp": "<<<<<<<<<<<<<<",
+      "exception": "System.FormatException"
+    },
+    {
+      "name": "unknown-day-month",
+      "birthDate": "<</<</74",
+      "expiryDate": "15/04/32",
+      "pinpp": "41208740000000",
+      "result": {
+        "Additional": "",
+        "BirthDate": "01.01.1974",
+        "DocumentNumber": "AA1234567",
+        "DocumentType": "P",
+        "ExpiryDate": "15.04.2032",
+        "Issuer": "Uzbekistan",
+        "Nationality": "Uzbekistan",
+        "Citizenship": null,
+        "Pinpp": "41208740000000",
+        "Surname": "TOSHMATOV",
+        "Name": "ALISHER",
+        "Sex": "M",
+        "Line1": "P<UZBTOSHMATOV<<ALISHER<<<<<<<<<<<<<<<<<<<<<",
+        "Line2": "AA12345678UZB9001011M30010193123456789012324",
+        "Line3": "",
+        "InformationFrom": 0
+      }
+    },
+    {
+      "name": "empty-pinpp",
+      "birthDate": "12/08/74",
+      "expiryDate": "15/04/32",
+      "pinpp": "",
+      "exception": "System.IndexOutOfRangeException"
+    },
+    {
+      "name": "short-birth",
+      "birthDate": "12/08",
+      "expiryDate": "15/04/32",
+      "pinpp": "31208740000000",
+      "exception": "System.ArgumentOutOfRangeException"
+    }
+  ],
+  "answereJson": {
+    "toJsonSignature": "Object inParam=, Boolean ingoreNullValues=True",
+    "mrz": "{\"Data\":{\"BirthDate\":\"01.01.1990\",\"DocumentNumber\":\"AA1234567\",\"DocumentType\":\"P\",\"ExpiryDate\":\"01.01.2030\",\"Nationality\":\"UZB\",\"Citizenship\":\"UZB\",\"Pinpp\":\"31234567890123\",\"Surname\":\"TOSHMATOV\",\"Name\":\"ALISHER\",\"Sex\":\"M\",\"Line1\":\"P<UZBTOSHMATOV<<ALISHER<<<<<<<<<<<<<<<<<<<<<\",\"Line2\":\"AA12345678UZB9001011M30010193123456789012324\",\"DocumentReadingTime\":3.2517,\"InformationFrom\":1},\"AnswereId\":1,\"AnswereMessage\":\"Паспорт ўқилди\",\"AnswereComment\":\"Маълумотлар MRZ дан\"}",
+    "mrzWithNulls": "{\"Data\":{\"Additional\":null,\"BirthDate\":\"01.01.1990\",\"DocumentNumber\":\"AA1234567\",\"DocumentType\":\"P\",\"ExpiryDate\":\"01.01.2030\",\"Issuer\":null,\"Nationality\":\"UZB\",\"Citizenship\":\"UZB\",\"Pinpp\":\"31234567890123\",\"Surname\":\"TOSHMATOV\",\"Name\":\"ALISHER\",\"Sex\":\"M\",\"Line1\":\"P<UZBTOSHMATOV<<ALISHER<<<<<<<<<<<<<<<<<<<<<\",\"Line2\":\"AA12345678UZB9001011M30010193123456789012324\",\"Line3\":null,\"PersonPhoto\":null,\"DocumentReadingTime\":3.2517,\"InformationFrom\":1},\"AnswereId\":1,\"AnswereMessage\":\"Паспорт ўқилди\",\"AnswereComment\":\"Маълумотлар MRZ дан\"}",
+    "chipMinimalWithBitmap": "{\"Data\":{\"Name\":\"ALISHER\",\"PersonPhoto\":\"System.Drawing.Bitmap\",\"DocumentReadingTime\":0.5,\"InformationFrom\":0},\"AnswereId\":1,\"AnswereMessage\":\"Паспорт ўқилди\",\"AnswereComment\":\"Маълумотлар чипдан\"}",
+    "chipWithBitmap": "{\"Data\":{\"Additional\":\"\",\"BirthDate\":\"12.08.1974\",\"DocumentNumber\":\"AA1234567\",\"DocumentType\":\"P\",\"ExpiryDate\":\"15.04.2032\",\"Issuer\":\"Uzbekistan\",\"Nationality\":\"Uzbekistan\",\"Pinpp\":\"31208740000000\",\"Surname\":\"TOSHMATOV\",\"Name\":\"ALISHER\",\"Sex\":\"M\",\"Line1\":\"P<UZBTOSHMATOV<<ALISHER<<<<<<<<<<<<<<<<<<<<<\",\"Line2\":\"AA12345678UZB9001011M30010193123456789012324\",\"Line3\":\"\",\"PersonPhoto\":\"System.Drawing.Bitmap\",\"DocumentReadingTime\":7.125,\"InformationFrom\":0},\"AnswereId\":1,\"AnswereMessage\":\"Паспорт ўқилди\",\"AnswereComment\":\"Маълумотлар чипдан\"}",
+    "chipNoPhoto": "{\"Data\":{\"Additional\":\"\",\"BirthDate\":\"12.08.1974\",\"DocumentNumber\":\"AA1234567\",\"DocumentType\":\"P\",\"ExpiryDate\":\"15.04.2032\",\"Issuer\":\"Uzbekistan\",\"Nationality\":\"Uzbekistan\",\"Pinpp\":\"31208740000000\",\"Surname\":\"TOSHMATOV\",\"Name\":\"ALISHER\",\"Sex\":\"M\",\"Line1\":\"P<UZBTOSHMATOV<<ALISHER<<<<<<<<<<<<<<<<<<<<<\",\"Line2\":\"AA12345678UZB9001011M30010193123456789012324\",\"Line3\":\"\",\"DocumentReadingTime\":7.125,\"InformationFrom\":0},\"AnswereId\":1,\"AnswereMessage\":\"Паспорт ўқилди\",\"AnswereComment\":\"Маълумотлар чипдан\"}",
+    "initialReaderResult": "{\"AnswereId\":0,\"AnswereMessage\":\"Маълумотлар олинмаган\",\"AnswereComment\":\"Маълумотлар олинмаган\"}"
+  },
+  "checksumCharMap": [
+    {
+      "code": 32,
+      "char": " ",
+      "accepted": ""
+    },
+    {
+      "code": 33,
+      "char": "!",
+      "accepted": ""
+    },
+    {
+      "code": 34,
+      "char": "\"",
+      "accepted": ""
+    },
+    {
+      "code": 35,
+      "char": "#",
+      "accepted": ""
+    },
+    {
+      "code": 36,
+      "char": "$",
+      "accepted": ""
+    },
+    {
+      "code": 37,
+      "char": "%",
+      "accepted": ""
+    },
+    {
+      "code": 38,
+      "char": "&",
+      "accepted": "0"
+    },
+    {
+      "code": 39,
+      "char": "'",
+      "accepted": ""
+    },
+    {
+      "code": 40,
+      "char": "(",
+      "accepted": ""
+    },
+    {
+      "code": 41,
+      "char": ")",
+      "accepted": ""
+    },
+    {
+      "code": 42,
+      "char": "*",
+      "accepted": ""
+    },
+    {
+      "code": 43,
+      "char": "+",
+      "accepted": ""
+    },
+    {
+      "code": 44,
+      "char": ",",
+      "accepted": ""
+    },
+    {
+      "code": 45,
+      "char": "-",
+      "accepted": ""
+    },
+    {
+      "code": 46,
+      "char": ".",
+      "accepted": ""
+    },
+    {
+      "code": 47,
+      "char": "/",
+      "accepted": ""
+    },
+    {
+      "code": 48,
+      "char": "0",
+      "accepted": "0"
+    },
+    {
+      "code": 49,
+      "char": "1",
+      "accepted": "1"
+    },
+    {
+      "code": 50,
+      "char": "2",
+      "accepted": "2"
+    },
+    {
+      "code": 51,
+      "char": "3",
+      "accepted": "3"
+    },
+    {
+      "code": 52,
+      "char": "4",
+      "accepted": "4"
+    },
+    {
+      "code": 53,
+      "char": "5",
+      "accepted": "5"
+    },
+    {
+      "code": 54,
+      "char": "6",
+      "accepted": "6"
+    },
+    {
+      "code": 55,
+      "char": "7",
+      "accepted": "7"
+    },
+    {
+      "code": 56,
+      "char": "8",
+      "accepted": "8"
+    },
+    {
+      "code": 57,
+      "char": "9",
+      "accepted": "9"
+    },
+    {
+      "code": 58,
+      "char": ":",
+      "accepted": "0"
+    },
+    {
+      "code": 59,
+      "char": ";",
+      "accepted": "1"
+    },
+    {
+      "code": 60,
+      "char": "<",
+      "accepted": "0"
+    },
+    {
+      "code": 61,
+      "char": "=",
+      "accepted": "3"
+    },
+    {
+      "code": 62,
+      "char": ">",
+      "accepted": "4"
+    },
+    {
+      "code": 63,
+      "char": "?",
+      "accepted": "5"
+    },
+    {
+      "code": 64,
+      "char": "@",
+      "accepted": "6"
+    },
+    {
+      "code": 65,
+      "char": "A",
+      "accepted": "0"
+    },
+    {
+      "code": 66,
+      "char": "B",
+      "accepted": "1"
+    },
+    {
+      "code": 67,
+      "char": "C",
+      "accepted": "2"
+    },
+    {
+      "code": 68,
+      "char": "D",
+      "accepted": "3"
+    },
+    {
+      "code": 69,
+      "char": "E",
+      "accepted": "4"
+    },
+    {
+      "code": 70,
+      "char": "F",
+      "accepted": "5"
+    },
+    {
+      "code": 71,
+      "char": "G",
+      "accepted": "6"
+    },
+    {
+      "code": 72,
+      "char": "H",
+      "accepted": "7"
+    },
+    {
+      "code": 73,
+      "char": "I",
+      "accepted": "8"
+    },
+    {
+      "code": 74,
+      "char": "J",
+      "accepted": "9"
+    },
+    {
+      "code": 75,
+      "char": "K",
+      "accepted": "0"
+    },
+    {
+      "code": 76,
+      "char": "L",
+      "accepted": "1"
+    },
+    {
+      "code": 77,
+      "char": "M",
+      "accepted": "2"
+    },
+    {
+      "code": 78,
+      "char": "N",
+      "accepted": "3"
+    },
+    {
+      "code": 79,
+      "char": "O",
+      "accepted": "4"
+    },
+    {
+      "code": 80,
+      "char": "P",
+      "accepted": "5"
+    },
+    {
+      "code": 81,
+      "char": "Q",
+      "accepted": "6"
+    },
+    {
+      "code": 82,
+      "char": "R",
+      "accepted": "7"
+    },
+    {
+      "code": 83,
+      "char": "S",
+      "accepted": "8"
+    },
+    {
+      "code": 84,
+      "char": "T",
+      "accepted": "9"
+    },
+    {
+      "code": 85,
+      "char": "U",
+      "accepted": "0"
+    },
+    {
+      "code": 86,
+      "char": "V",
+      "accepted": "1"
+    },
+    {
+      "code": 87,
+      "char": "W",
+      "accepted": "2"
+    },
+    {
+      "code": 88,
+      "char": "X",
+      "accepted": "3"
+    },
+    {
+      "code": 89,
+      "char": "Y",
+      "accepted": "4"
+    },
+    {
+      "code": 90,
+      "char": "Z",
+      "accepted": "5"
+    },
+    {
+      "code": 91,
+      "char": "[",
+      "accepted": "6"
+    },
+    {
+      "code": 92,
+      "char": "\\",
+      "accepted": "7"
+    },
+    {
+      "code": 93,
+      "char": "]",
+      "accepted": "8"
+    },
+    {
+      "code": 94,
+      "char": "^",
+      "accepted": "9"
+    },
+    {
+      "code": 95,
+      "char": "_",
+      "accepted": "0"
+    },
+    {
+      "code": 96,
+      "char": "`",
+      "accepted": "1"
+    },
+    {
+      "code": 97,
+      "char": "a",
+      "accepted": "2"
+    },
+    {
+      "code": 98,
+      "char": "b",
+      "accepted": "3"
+    },
+    {
+      "code": 99,
+      "char": "c",
+      "accepted": "4"
+    },
+    {
+      "code": 100,
+      "char": "d",
+      "accepted": "5"
+    },
+    {
+      "code": 101,
+      "char": "e",
+      "accepted": "6"
+    },
+    {
+      "code": 102,
+      "char": "f",
+      "accepted": "7"
+    },
+    {
+      "code": 103,
+      "char": "g",
+      "accepted": "8"
+    },
+    {
+      "code": 104,
+      "char": "h",
+      "accepted": "9"
+    },
+    {
+      "code": 105,
+      "char": "i",
+      "accepted": "0"
+    },
+    {
+      "code": 106,
+      "char": "j",
+      "accepted": "1"
+    },
+    {
+      "code": 107,
+      "char": "k",
+      "accepted": "2"
+    },
+    {
+      "code": 108,
+      "char": "l",
+      "accepted": "3"
+    },
+    {
+      "code": 109,
+      "char": "m",
+      "accepted": "4"
+    },
+    {
+      "code": 110,
+      "char": "n",
+      "accepted": "5"
+    },
+    {
+      "code": 111,
+      "char": "o",
+      "accepted": "6"
+    },
+    {
+      "code": 112,
+      "char": "p",
+      "accepted": "7"
+    },
+    {
+      "code": 113,
+      "char": "q",
+      "accepted": "8"
+    },
+    {
+      "code": 114,
+      "char": "r",
+      "accepted": "9"
+    },
+    {
+      "code": 115,
+      "char": "s",
+      "accepted": "0"
+    },
+    {
+      "code": 116,
+      "char": "t",
+      "accepted": "1"
+    },
+    {
+      "code": 117,
+      "char": "u",
+      "accepted": "2"
+    },
+    {
+      "code": 118,
+      "char": "v",
+      "accepted": "3"
+    },
+    {
+      "code": 119,
+      "char": "w",
+      "accepted": "4"
+    },
+    {
+      "code": 120,
+      "char": "x",
+      "accepted": "5"
+    },
+    {
+      "code": 121,
+      "char": "y",
+      "accepted": "6"
+    },
+    {
+      "code": 122,
+      "char": "z",
+      "accepted": "7"
+    },
+    {
+      "code": 123,
+      "char": "{",
+      "accepted": "8"
+    },
+    {
+      "code": 124,
+      "char": "|",
+      "accepted": "9"
+    },
+    {
+      "code": 125,
+      "char": "}",
+      "accepted": "0"
+    },
+    {
+      "code": 126,
+      "char": "~",
+      "accepted": "1"
+    }
+  ],
+  "getAllMessages": {
+    "one": "single\r\n",
+    "three": "outer\r\n\r\nmiddle\r\n\r\ninner\r\n"
+  },
+  "sourceLiterals": [
+    "",
+    " ",
+    " -> ",
+    " серия рақамли ҳужжат ҳолати: ",
+    "$this.Icon",
+    "(BG|FS)\\\\d\\\\d\\\\d\\\\d\\\\d\\\\d\\\\d",
+    "(IR|XS)\\\\d\\\\d\\\\d\\\\d\\\\d\\\\d\\\\d",
+    "-",
+    ".",
+    ".18",
+    ".19",
+    ".20",
+    "0",
+    "01",
+    "04",
+    "100017",
+    "1UTO123456789SMITH071078<<<<",
+    "20",
+    "240519",
+    "3",
+    "7",
+    "790520",
+    "<",
+    "<<",
+    "AA/AA/0000",
+    "ABW",
+    "AFG",
+    "AGO",
+    "AIA",
+    "ALB",
+    "AND",
+    "ANT",
+    "ARE",
+    "ARG",
+    "ARM",
+    "ASM",
+    "ATA",
+    "ATG",
+    "AUS",
+    "AUT",
+    "AZE",
+    "BAC га уланди",
+    "BAC га уланиш...",
+    "BAC га уланишда ҳато",
+    "BAP га уланди",
+    "BAP га уланиш...",
+    "BAP га уланишда ҳато",
+    "BDI",
+    "BEL",
+    "BEN",
+    "BFA",
+    "BGD",
+    "BGR",
+    "BHR",
+    "BHS",
+    "BIH",
+    "BLR",
+    "BLZ",
+    "BMU",
+    "BOL",
+    "BRA",
+    "BRB",
+    "BRN",
+    "BTN",
+    "BVT",
+    "BWA",
+    "CA2022302",
+    "CAF",
+    "CAN",
+    "CCK",
+    "CHE",
+    "CHL",
+    "CHN",
+    "CIV",
+    "CMR",
+    "COD",
+    "COG",
+    "COK",
+    "COL",
+    "COM",
+    "CPV",
+    "CRI",
+    "CUB",
+    "CYM",
+    "CYP",
+    "CZE",
+    "Card Number: {str}",
+    "Code: ",
+    "DEU",
+    "DG1 ўқилди",
+    "DG1 ўқилмади",
+    "DG1 ўқиш...",
+    "DG1 ўқишда ҳато",
+    "DG11 ўқилди",
+    "DG11 ўқиш жараёнида ҳато",
+    "DG11 ўқиш...",
+    "DG12 ўқилди",
+    "DG12 ўқиш жараёнида ҳато",
+    "DG12 ўқиш...",
+    "DG14 ўқилди",
+    "DG14 ўқиш...",
+    "DG14 ўқишда ҳато",
+    "DG15 ўқилди",
+    "DG15 ўқиш...",
+    "DG15 ўқишда ҳато",
+    "DG2 ўқилди",
+    "DG2 ўқиш...",
+    "DG2 ўқишда ҳато",
+    "DG3 ўқилди",
+    "DG3 ўқиш...",
+    "DG3 ўқишда ҳато",
+    "DG4 ўқилди",
+    "DG4 ўқиш...",
+    "DG4 ўқишда ҳато",
+    "DG6 ўқилди",
+    "DG6 ўқиш жараёнида ҳато",
+    "DG6 ўқиш...",
+    "DJI",
+    "DMA",
+    "DNK",
+    "DOM",
+    "DP",
+    "DZA",
+    "Device Parameters",
+    "ECU",
+    "EF SOd ни ўқиш...",
+    "EF SOd ўқилди",
+    "EGY",
+    "ERI",
+    "ESH",
+    "ESP",
+    "EST",
+    "ETH",
+    "Error accessing key '{0}'.. Skipping..",
+    "F",
+    "FIN",
+    "FJI",
+    "FLK",
+    "FR",
+    "FRA",
+    "FRO",
+    "FSM",
+    "FormReader",
+    "FormReader.FormReader() - >",
+    "FormReader.FormReader_FormClosing() - >",
+    "FormReader.ReadClick() - > Порт да ҳато, илтимос тўғри портни белгиланг ",
+    "FormReader.backgroundWorker_DoWork() - >",
+    "FormReader.backgroundWorker_RunWorkerCompleted() - >",
+    "FormReader.readDocument() - >",
+    "FormReader.readMRZ() - >",
+    "FormReader.selectAntenna() - >",
+    "FriendlyName",
+    "GAB",
+    "GBR",
+    "GEO",
+    "GHA",
+    "GIB",
+    "GIN",
+    "GLP",
+    "GMB",
+    "GNB",
+    "GNQ",
+    "GRC",
+    "GRD",
+    "GRL",
+    "GTM",
+    "GUF",
+    "GUM",
+    "GUY",
+    "H",
+    "HKEY_LOCAL_MACHINE\\\\",
+    "HKG",
+    "HMD",
+    "HND",
+    "HRV",
+    "HTI",
+    "HUN",
+    "IDN",
+    "IMY",
+    "IND",
+    "IO",
+    "IRL",
+    "IRN",
+    "IRQ",
+    "ISL",
+    "ISR",
+    "ITA",
+    "IU",
+    "IX",
+    "Id",
+    "Id Box ни ишга тушириш",
+    "JAM",
+    "JOR",
+    "JPN",
+    "KAZ",
+    "KEN",
+    "KGZ",
+    "KHM",
+    "KIR",
+    "KNA",
+    "KOR",
+    "KWT",
+    "LAO",
+    "LBN",
+    "LBR",
+    "LBY",
+    "LCA",
+    "LGB",
+    "LIE",
+    "LKA",
+    "LSO",
+    "LTU",
+    "LUX",
+    "LVA",
+    "M",
+    "MAC",
+    "MAR",
+    "MCO",
+    "MDA",
+    "MDG",
+    "MDV",
+    "MEX",
+    "MHL",
+    "MKD",
+    "MLI",
+    "MLT",
+    "MMR",
+    "MNG",
+    "MNP",
+    "MOZ",
+    "MRT",
+    "MRZ аниқлаш",
+    "MRZ махсус рақамларида ҳато",
+    "MRZ ни ўқиш...",
+    "MRZ ўқилди",
+    "MRZ ўқиш",
+    "MRZ ҳато берилган",
+    "MRZ1",
+    "MRZ2",
+    "MSR",
+    "MTQ",
+    "MUS",
+    "MWI",
+    "MYS",
+    "MYT",
+    "N",
+    "N/A",
+    "NAM",
+    "NCL",
+    "NER",
+    "NFK",
+    "NGA",
+    "NIC",
+    "NIU",
+    "NLD",
+    "NOR",
+    "NPL",
+    "NRU",
+    "NTZ",
+    "NZL",
+    "No smart card readers found.",
+    "O",
+    "OCR A Extended",
+    "OMN",
+    "P",
+    "PAK",
+    "PAN",
+    "PCN",
+    "PD",
+    "PER",
+    "PHL",
+    "PLW",
+    "PNG",
+    "POL",
+    "PRI",
+    "PRK",
+    "PRT",
+    "PRY",
+    "PSE",
+    "PT",
+    "PYF",
+    "PersonSearchForm",
+    "PersonSearchForm.ReadDocument({isManualMRZ.ToStr()})",
+    "PersonSearchForm.ReadIdCard",
+    "Please connect an Elyctis reader.",
+    "PortName",
+    "QAT",
+    "REU",
+    "ROM",
+    "RUS",
+    "RW",
+    "RWA",
+    "Reading MRZ...",
+    "Root",
+    "SAU",
+    "SCG",
+    "SDN",
+    "SEN",
+    "SGP",
+    "SHN",
+    "SJM",
+    "SLB",
+    "SLE",
+    "SLV",
+    "SMR",
+    "SOM",
+    "SPM",
+    "STP",
+    "SUR",
+    "SVK",
+    "SVN",
+    "SWE",
+    "SWZ",
+    "SYC",
+    "SYR",
+    "SYSTEM\\\\CurrentControlSet\\\\Enum",
+    "Segoe UI",
+    "Sign: ",
+    "System.Windows.Forms.PictureBox",
+    "TCA",
+    "TCD",
+    "TD",
+    "TGO",
+    "THA",
+    "TJK",
+    "TKL",
+    "TKM",
+    "TMP",
+    "TON",
+    "TTO",
+    "TUN",
+    "TUR",
+    "TUV",
+    "TWN",
+    "TZA",
+    "Tahoma",
+    "UGA",
+    "UKR",
+    "URY",
+    "USA",
+    "UZB",
+    "VAT",
+    "VCT",
+    "VEN",
+    "VGB",
+    "VIR",
+    "VNM",
+    "VUT",
+    "Valid from: ",
+    "Valid to: ",
+    "Value",
+    "Value: ",
+    "WLF",
+    "WSM",
+    "WaitForm.Close({isShown})",
+    "WaitForm.Show({isShown})",
+    "XXX",
+    "YEM",
+    "YUG",
+    "ZAF",
+    "ZAR",
+    "ZMB",
+    "ZWE",
+    "[A-Z][A-Z]\\\\d\\\\d\\\\d\\\\d\\\\d\\\\d\\\\d",
+    "\\\\",
+    "\\\\Device Parameters",
+    "\\n",
+    "\\r",
+    "alertButton",
+    "chBirthCertificate",
+    "chForeignBirthCertificate",
+    "chForeignPassport",
+    "chPsp",
+    "chUssr",
+    "disposing",
+    "eader [A-Z0-9]{16} [0-9]{1}",
+    "ely",
+    "emptySpaceItem1",
+    "emptySpaceItem2",
+    "lCaption",
+    "lStatus",
+    "labelControl1",
+    "layBirthCertificate",
+    "layForeignBirthCertificate",
+    "layForeignPassport",
+    "layPsp",
+    "layUssr",
+    "layoutControl1",
+    "layoutControlGroup1",
+    "layoutControlGroup2",
+    "layoutControlGroup3",
+    "layoutControlItem1",
+    "layoutControlItem2",
+    "layoutControlItem3",
+    "layoutControlItem4",
+    "layoutControlItem5",
+    "layoutControlItem6",
+    "layoutControlItem8",
+    "layoutControlItem9",
+    "lСitizenship",
+    "pCitizenship",
+    "pDateBirth",
+    "pMRZ1",
+    "pMRZ2",
+    "pSerialNumber",
+    "pictureBoxAntennaSelected",
+    "pictureBoxAntennaSelected.EditValue",
+    "pictureBoxChipRead",
+    "pictureBoxChipRead.EditValue",
+    "pictureBoxMRZDetected",
+    "pictureBoxMRZDetected.EditValue",
+    "pictureBoxMRZRead",
+    "pictureBoxMRZRead.EditValue",
+    "pictureReader",
+    "progressBar1",
+    "sbClose",
+    "sbClose.Image",
+    "sbExtandedSearch",
+    "sbExtandedSearch.Image",
+    "sbManualMRZ",
+    "sbNewPerson",
+    "sbNewPerson.Image",
+    "sbReader",
+    "sbReader.Image",
+    "yyMMdd",
+    "{0} ({1})",
+    "{ansPerson.Data.Document.SerialNumber} серия рақамли ҳужжат ҳолати: {ansPerson.Data.Document.DocumentStatus.Value}",
+    "Ўқиш маълумотлари...",
+    "Ўқиш қурилмаси уланмаган",
+    "Ўқиш қурилмасини узишда ҳато",
+    "Ўқишни бошлаш...",
+    "Актив аутентификация муваффақиятли",
+    "Актив аутентификацияда ҳато",
+    "Антеннари аниқлаш...",
+    "Берилган ",
+    "Берилган MRZ узунлиги {mrz.Length} ҳато",
+    "Берилган ҳужжат холати фаол эмас",
+    "Биометрик паспорт маълумотларни ўқишда ҳато",
+    "ДПМ сервиси бўйича маълумот олиш",
+    "ДПМ сервиси бўйича маълумот олиш (100017)",
+    "ДПМ томонидан берилган туғилганлик ҳақидаги гувоҳномалар базаси бўйича излаш, топ",
+    "Диққат",
+    "Диққат берилган ҳужжат холати фаол эмас",
+    "ИИВ ёки ДПМ орқали бериладиган ҳужжатлар бўйича излаш",
+    "Илтимос, ҳужжатни ўқиш қурилмасига қўйинг",
+    "Карта топилмади",
+    "Картани ўқиш вақти ўтиб кетти",
+    "Картотека ёрдамида киритилган собиқ иттифоқ паспорти базаси бўйича излаш",
+    "Кенгайтирилган излаш",
+    "Коди",
+    "Маълумот",
+    "Маълумотлар MRZ дан",
+    "Маълумотлар олинмаган",
+    "Маълумотлар чипдан",
+    "Маълумотларни ўқиш...",
+    "Номи",
+    "Олдинги антенна танланди...",
+    "Орқа антенна танланди...",
+    "Орқадаги антенна танланди...",
+    "Паспорт базасидан излаш",
+    "Паспорт ёки яшаш гувоҳномаси",
+    "Паспорт ўқилди",
+    "Пассив аутентификация муваффақиятли",
+    "Пассив аутентификация танлаш",
+    "Пассив аутентификацияда ҳато",
+    "Порт да ҳато, илтимос тўғри портни белгиланг",
+    "Савол",
+    "Собиқ иттифоқ паспорти",
+    "Собиқ иттифоқ паспорти бўйича излаш",
+    "Терминал аутентификациясида ҳато",
+    "Терминал аутентификациясини муваффақиятли",
+    "Терминал аутентификациясини танлаш",
+    "Туғилган санаси",
+    "Туғилган санаси тўлиқ берилмаган",
+    "Туғилганлик гувохномаси бўйича излаш",
+    "Туғилганлик ҳақидаги гувоҳномаси",
+    "Тўлиқ маълумот қўриш",
+    "Узилди",
+    "Уланиш муваффақиятли",
+    "ФБШ учун яшаш гувоҳномаси ёки ID картаси",
+    "Фотосуратни кўрсатишда ҳато",
+    "Фотосуратни олишда ҳато",
+    "Фотосуратни қўрсатишда ҳато",
+    "Фуқаро паспорти ёки ID картаси",
+    "Фуқаролиги",
+    "Чет эл давлат томонидан берилган туғилганлик ҳақидаги гувоҳномалар ДПМ сервиси ор",
+    "Чет эл паспорти",
+    "Чет эл туғилганлик гувохномаси бўйича излаш",
+    "Чет эл туғилганлик ҳақидаги гувоҳномаси",
+    "Чет эл фуқаролари бўйича излаш",
+    "Чет эл фуқароси паспортлари базаси бўйича излаш",
+    "Чет эл фуқароси учун яшаш гувоҳномаси ёки ID картаси",
+    "Чип аутентификацияси муваффақиятли",
+    "Чип аутентификациясида ҳато",
+    "Чип аутентификациясни танлаш",
+    "Чипни аниқлаш",
+    "Чипни аниқлаш...",
+    "Чипни ўқиш",
+    "Чипни ўқиш қурилмасини ишга тушириш",
+    "Шахс туғилган санаси ХХ.ХХ.9999 кўринишда бўлиши керак",
+    "Шахсни базадан излаш",
+    "Янги шахс сўровномасини яратиш",
+    "илмаган холатда ФХДЁ сервисидан олинади",
+    "Қурилма номи ёки аплет турида ҳато",
+    "Қурилма портида ҳато",
+    "Қурилма портида ҳато, илтимос тўғри портни белгиланг",
+    "Қурилма топилмади",
+    "Қурилма топилмади, ёки порт аниклашда ҳато",
+    "Қурилмага уланилди",
+    "Қурилмага уланиш...",
+    "Қурилмага уланишда ҳато",
+    "Қурилмаган уланиш...",
+    "Қўрилма номида ёки аплетда ҳато",
+    "қали излаш",
+    "Ҳато",
+    "Ҳужжат серия рақами камида 4 та символдан иборат бўлиши керак",
+    "Ҳужжат серия рақами тўлиқ берилмаган",
+    "Ҳужжат тури",
+    "Ҳужжат чипини ўқиш...",
+    "Ҳужжат ўқиш қурилмасига қўйилмаган",
+    "Ҳужжатни ўқиш якунланди",
+    "Ҳужжатни ўқиш қурилмасига қўйинг ва шу тугмани босинг",
+    "Ҳужжатни ўқиш қурилмасини ишга тушириш",
+    "Ҳужжатни ўқиш...",
+    "Ҳужжатнинг MRZ қаторлари"
+  ]
+}

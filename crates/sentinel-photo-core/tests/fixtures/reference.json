@@ -1,0 +1,11 @@
+{
+  "generator": "tools/DocumentPhoto.Reference/Reference.cs",
+  "process": "x86 .NET Framework 4.0.30319.42000",
+  "desktopDpi": 96,
+  "cases": [
+    {"input": "camera-5184x3456.jpg", "percent": 20, "inputDpi": 72, "crop": [2000, 800, 2000, 2385], "cropPixelFormat": "Format32bppArgb", "cropDpi": 96, "paneSize": [400, 477], "panePixelFormat": "Format24bppRgb", "paneDpi": 96, "output": "camera-5184x3456.p20.ref.jpg", "jpegLength": 39730, "getBufferLength": 39730, "getBufferSlack": 0, "slackAllZero": true, "sha256": "446812a1158acab459b3bd71f77b5ad15878a342b21c41a7ab1e57af3ea8171b"},
+    {"input": "camera-5184x3456.jpg", "percent": 30, "inputDpi": 72, "crop": [2000, 800, 2000, 2385], "cropPixelFormat": "Format32bppArgb", "cropDpi": 96, "paneSize": [600, 715], "panePixelFormat": "Format24bppRgb", "paneDpi": 96, "output": "camera-5184x3456.p30.ref.jpg", "jpegLength": 73330, "getBufferLength": 131072, "getBufferSlack": 57742, "slackAllZero": true, "sha256": "192500fd0006e5b750af26cdf3f6fb0e19e662cf88f10cf3ca4d08a4ad21941a"},
+    {"input": "camera-3456x2304.jpg", "percent": 20, "inputDpi": 72, "crop": [864, 0, 1728, 2304], "cropPixelFormat": "Format32bppArgb", "cropDpi": 96, "paneSize": [345, 460], "panePixelFormat": "Format24bppRgb", "paneDpi": 96, "output": "camera-3456x2304.p20.ref.jpg", "jpegLength": 33379, "getBufferLength": 33379, "getBufferSlack": 0, "slackAllZero": true, "sha256": "dcb15017fc2a26add381ac4325366a94aa3f43307b6babebb59939b61a61f3fc"},
+    {"input": "camera-3456x2304.jpg", "percent": 30, "inputDpi": 72, "crop": [864, 0, 1728, 2304], "cropPixelFormat": "Format32bppArgb", "cropDpi": 96, "paneSize": [518, 691], "panePixelFormat": "Format24bppRgb", "paneDpi": 96, "output": "camera-3456x2304.p30.ref.jpg", "jpegLength": 64506, "getBufferLength": 64506, "getBufferSlack": 0, "slackAllZero": true, "sha256": "220430cd5f5c377ccd2ba2f29874dff419c4061118ef5949f311e9a74b1e3f7b"}
+  ]
+}

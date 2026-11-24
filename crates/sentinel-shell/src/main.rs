@@ -1,24 +1,40 @@
 //! Sentinel browser entry point.
 //!
-//! With the `ultralight` feature it opens the window, loads the home URL, and runs
-//! the event loop. Without the feature (e.g. CI without the SDK) it builds and
-//! prints how to enable the GUI, so the binary target always compiles.
+//! With the `ultralight` feature it opens a winit window that presents the engine's
+//! renderer. Without the feature it builds and prints how to enable the GUI, so the
+//! binary target always compiles.
 
 #[cfg(feature = "ultralight")]
 fn main() -> sentinel_core::Result<()> {
     use sentinel_core::BrowserConfig;
+    use sentinel_shell::app;
+    use sentinel_shell::dashboard::{DASHBOARD_HTML, DEVICES_PLACEHOLDER};
 
-    // Open Google on startup (overriding the about:blank default).
-    let config = BrowserConfig {
-        home_url: "https://www.google.com".into(),
-        ..BrowserConfig::default()
-    };
+    // Capture panics (e.g. inside the winit callback, which Windows turns into a
+    // fatal callback exception) to a file so the cause is recoverable.
+    std::panic::set_hook(Box::new(|info| {
+        use std::io::Write;
+        let msg = format!("PANIC: {info}\n");
+        eprint!("{msg}");
+        if let Ok(mut f) = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open("sentinel-panic.log")
+        {
+            let _ = f.write_all(msg.as_bytes());
+            let _ = f.flush();
+        }
+    }));
+
+    let config = BrowserConfig::default();
     config.validate()?;
 
-    let mut browser = sentinel_shell::browser::Browser::new(&config)?;
-    browser.go(&config.home_url)?;
-    browser.run(); // blocks until the window closes
-    Ok(())
+    // Enumerate real devices in Rust and bake the snapshot into the dashboard, so
+    // the page shows live hardware immediately.
+    let devices = app::device_snapshot_json();
+    let html = DASHBOARD_HTML.replace(DEVICES_PLACEHOLDER, &devices);
+
+    app::run(&config, html)
 }
 
 #[cfg(not(feature = "ultralight"))]

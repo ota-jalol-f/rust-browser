@@ -27,10 +27,19 @@ See the full design and honest threat model in
 | `sentinel-core` | ✅ verified (12 tests) | Error/Result, `BrowserConfig`, navigation `History` |
 | `sentinel-crypto` | ✅ verified (11 tests) | Argon2id KDF + AES-256-GCM at-rest encryption |
 | `sentinel-storage` | ✅ verified (6 tests) | Encrypted SQLite store: history + bookmarks |
-| `sentinel-engine` | ✅ compiles vs real `ul-next` | Ultralight integration (headless CPU render); runtime render needs the SDK |
-| `sentinel-shell` | ✅ compiles vs real `ul-next` (4 tests) | GUI binary: window + overlay + navigation; live render needs the SDK |
-| `sentinel-ipc` / `-permissions` / `-bridge` | ⏳ planned | `window.native.*`, consent broker, host IPC |
-| `sentinel-device-host` / `-dll-host` | ⏳ planned | Out-of-process USB/serial and DLL execution |
+| `sentinel-engine` | ✅ render + JS bridge verified | Ultralight (low-level Renderer). `PageView`: render to pixels, input, live `window.native` install |
+| `sentinel-shell` | ✅ GUI runs live | winit window + softbuffer present; mouse + keyboard; dashboard with live device list + JS console + **live `window.native`** |
+| `sentinel-permissions` | ✅ verified (12 tests) | Per-origin capability consent gate (Ask = secure default) |
+| `sentinel-ipc` | ✅ verified (12 tests) | Typed host protocol + framing + `RequestExecutor` seam |
+| `sentinel-bridge` | ✅ verified (12 tests) | Permission-gated router + JSON dispatch; `window.native` end-to-end |
+| `sentinel-device-host` | ✅ real HW (5 tests) | USB/serial via nusb + serialport |
+| `sentinel-dll-host` | ✅ real DLL (7 tests) | Native DLL load/invoke via libloading, SHA-256 gated |
+| `sentinel-hosts` | ✅ verified (3 tests) | Combines device + DLL hosts into one executor |
+
+**GUI architecture:** the window is winit + softbuffer presenting the engine's low-level
+Ultralight `Renderer` (NOT AppCore — its overlay views crash on the JS-bridge callback). This
+is what makes the live `window.native` bridge work in the GUI. Run with
+`cargo run -p sentinel-shell --features ultralight`.
 
 ## Build & test
 
@@ -49,11 +58,20 @@ gate (CPU renderer + `win7` target via `build-std`), intentionally not blocking 
 ## Roadmap
 
 Phased, each phase its own spec → plan → implementation:
-1. **Core shell** (in progress) — engine + window + navigation.
-2. **Storage + security** (storage ✅; security hardening next).
-3. **Native bridge + permissions.**
-4. **USB / serial.**
-5. **DLL plugins.**
+1. **Core shell** ✅ — engine + window + navigation (GUI runs).
+2. **Storage + security** — storage ✅; security hardening (CSP/TLS/injection lockdown) remains.
+3. **Native bridge + permissions** ✅ — `window.native.*` gated end-to-end (verified headless).
+4. **USB / serial** — enumeration ✅ (real hardware); per-device I/O + IPC transport remain.
+5. **DLL host** — planned (libloading + bindgen, consent + sandbox).
+
+**End-to-end proven:** a granted page call to `window.native.usb.list()` flows JS → shim →
+Rust dispatcher → permission gate → real device-host enumeration (nusb) → JSON back to the
+page — verified headlessly against this machine's hardware.
+
+Remaining cross-cutting work: route DLL requests through the executor too; the per-origin
+consent prompt UI; per-device I/O (open/transfer); security hardening (CSP/TLS/injection
+lockdown); and an out-of-process tokio IPC transport for true host isolation (the executor
+seam and frame protocol are already in place).
 
 Plans live in [`docs/superpowers/plans/`](docs/superpowers/plans/).
 

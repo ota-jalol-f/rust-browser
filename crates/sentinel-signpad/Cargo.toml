@@ -1,0 +1,23 @@
+[package]
+name = "sentinel-signpad"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+
+# The Asbt.SignPad plugin (x64): the in-process Rust equivalent of the reference
+# Asbt.SignPad.Plugin's SignPadObj host object. pv-next drives it through
+# chrome.webview.hostObjects.signpad.Capture(), which opens the signature overlay
+# and returns a 495x285 base64 JPEG (or cancel/busy/error).
+#
+# The reference captured on a Topaz pad via the managed SigPlusNET.dll; the shipped
+# Rust browser forbids .NET and no native Topaz SDK is available, so the overlay
+# captures the signature on an HTML <canvas> (mouse / pen / touch) instead — the
+# same output contract. A native Topaz backend would need the vendor's native SDK.
+[dependencies]
+sentinel-plugin = { path = "../sentinel-plugin" }
+sentinel-signpad-core = { path = "../sentinel-signpad-core" }
+serde_json = "1"
+
+[dev-dependencies]
+# Build synthetic signature PNGs in the plugin tests.
+png = "0.17"

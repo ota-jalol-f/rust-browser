@@ -1,0 +1,16 @@
+[package]
+name = "sentinel-fingerprints-core"
+version = "0.1.0"
+edition.workspace = true
+license.workspace = true
+
+# Pure, device-free logic of the reference Asbt.Fingerprints.Plugin 1.1.0
+# (pv-winform FormFingerprintsV2, Suprema RealScan 10-finger enrollment). The parts
+# that do not touch the RealScan SDK: the ModelFingerprint JSON (what Enroll returns,
+# byte-for-byte as Newtonsoft serialized it), the WSQ trailing-zero trim + 18000
+# warning, the Enroll options parse, the request dispatch (enroll vs scan), the
+# finger model/enums, and the user-visible texts. No hardware, no FFI, no OS deps —
+# every host and both Win7 targets build + test it. Pinned against the C# reference
+# (the ModelFingerprintJsonTests golden strings, WsqTrimTests, EnrollTextsTests).
+[dependencies]
+serde_json = "1"
