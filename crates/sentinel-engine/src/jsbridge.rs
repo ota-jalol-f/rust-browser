@@ -318,6 +318,30 @@ pub fn install_async_bridge(view: &View, origin: Origin, pending: PendingCalls) 
               Methods return Promises, matching what pv-next `await`s. */\
            window.chrome = window.chrome || {};\
            window.chrome.webview = window.chrome.webview || {};\
+           /* Make chrome.webview an EventTarget for the deferred-result channel\
+              (share.InvokeDeferred -> 'mybrowser:deferred' message). pv-next's\
+              bridge attaches its listener to chrome.webview exactly once and\
+              remembers the object, so AUGMENT in place and add the hooks only when\
+              absent — replacing the object or the listener store would orphan\
+              pv-next's listener and hang every deferred call. __deliver dispatches\
+              {data:<object>} because the listener rejects a non-object data. */\
+           var __cw = window.chrome.webview;\
+           if (typeof __cw.addEventListener !== 'function') {\
+             __cw.__sentinelMsgListeners = [];\
+             __cw.addEventListener = function(type, fn){\
+               if (type === 'message' && typeof fn === 'function') __cw.__sentinelMsgListeners.push(fn);\
+             };\
+             __cw.removeEventListener = function(type, fn){\
+               if (type !== 'message') return;\
+               var a = __cw.__sentinelMsgListeners, i = a.indexOf(fn);\
+               if (i >= 0) a.splice(i, 1);\
+             };\
+             __cw.__deliver = function(data){\
+               (__cw.__sentinelMsgListeners || []).slice().forEach(function(fn){\
+                 try { fn({ data: data }); } catch (e) {}\
+               });\
+             };\
+           }\
            window.chrome.webview.hostObjects = window.chrome.webview.hostObjects || {};\
            window.chrome.webview.hostObjects.share = window.share;\
          })();";
@@ -337,12 +361,25 @@ pub fn install_async_bridge(view: &View, origin: Origin, pending: PendingCalls) 
 /// `window.__sentinelRun` it exposes, so the origin stamp, the capability gate and
 /// the per-tab queue all still apply.
 ///
-/// This is the surface pv-next actually uses for most plugins: its services call
-/// `hostObjects.idbox.ReadChipUid()`, `hostObjects.system.ping()`, etc., not
-/// `share.RunPlugin`. Each generated method sends
-/// `{kind:'run', id, request:'{"method":"<js>","args":[…]}', ui:<ui>}` and resolves
-/// the page Promise with the plugin's return value (JSON-parsed when it parses, so
-/// an envelope arrives as an object and a raw string stays a string).
+/// This is the surface pv-next actually uses: its services call
+/// `hostObjects.idbox.ReadChipUid()`, `hostObjects.system.ping()`, etc. Each
+/// generated method sends `{kind:'run', id, request:'{"method":"<js>","args":[…]}',
+/// ui:<ui>}` and resolves the page Promise either with the `PluginResult` envelope
+/// (the default — the idbox/fingerprints/photo/signpad services unwrap it with
+/// `success ? data : throw`) or, when the host method is [`HostMethod::raw`], with
+/// the raw JSON-decoded `data` (for services such as `system` that use the value
+/// verbatim).
+///
+/// This also installs `share.InvokeDeferred(callId, objectName, method, argsJson)`,
+/// the deferred/modal call path the current pv-next bridge uses for every method in
+/// its `a8` allowlist: it returns `{"accepted":true}` synchronously (so the
+/// WebView2-style host-object call returns before any modal window opens — a modal
+/// loop inside that call crashes the reference WebView2 host), runs the op off-call
+/// through the same enqueue/pump machinery, and posts the outcome back as a
+/// `chrome.webview` `mybrowser:deferred` message keyed by `callId`. The generic
+/// `share.RunPlugin(id, payload)` arrives through this path too and posts the
+/// plugin's raw output (the reference `RunPlugin` returns the plugin's own string;
+/// its pv-next consumer does not unwrap an envelope).
 ///
 /// `spec_json` must be a trusted JSON array produced by the host (it is spliced
 /// into the shim as a literal). An overlay view must NOT get host objects.
@@ -353,24 +390,90 @@ pub fn install_host_objects(view: &View, spec_json: &str) -> Result<()> {
     // Template with a splice token rather than format! (the shim is dense with
     // braces); the token is distinctive and cannot occur in the JSON.
     let template = "(function(){\
-        var spec; try { spec = __SENTINEL_HOST_SPEC__; } catch (e) { return; }\
+        var spec; try { spec = __SENTINEL_HOST_SPEC__; } catch (e) { spec = []; }\
+        if (!Array.isArray(spec)) spec = [];\
         var run = window.__sentinelRun;\
-        if (!run || !Array.isArray(spec)) return;\
+        if (typeof run !== 'function') return;\
         window.chrome = window.chrome || {};\
         window.chrome.webview = window.chrome.webview || {};\
         window.chrome.webview.hostObjects = window.chrome.webview.hostObjects || {};\
+        var cw = window.chrome.webview;\
+        /* Unwrap a PluginResult envelope string to its raw, JSON-decoded data;\
+           throws on failure. Used by raw host methods. */\
+        function unwrapRaw(s){\
+          var env; try { env = JSON.parse(s); } catch(e){ return s; }\
+          if (env && typeof env === 'object' && 'success' in env){\
+            if (!env.success) throw new Error(env.error_message || 'plugin error');\
+            /* A raw method MUST JSON-encode its return in data; surface a contract\
+               violation loudly rather than silently coercing a bare string. */\
+            try { return JSON.parse(env.data); } catch(e){ throw new Error('raw host method returned non-JSON data'); }\
+          }\
+          return env;\
+        }\
+        var byName = {};\
         spec.forEach(function(p){\
+          var methods = {};\
           var obj = {};\
           (p.methods || []).forEach(function(m){\
+            methods[m.js] = { ui: m.ui === true, raw: m.raw === true };\
             obj[m.js] = function(){\
               var args = Array.prototype.slice.call(arguments);\
               var req = JSON.stringify({method: m.js, args: args});\
               return run(JSON.stringify({kind:'run', id:p.id, request:req, ui:m.ui===true}))\
-                .then(function(s){ try { return JSON.parse(s); } catch(e){ return s; } });\
+                .then(function(s){\
+                  if (m.raw === true) return unwrapRaw(s);\
+                  try { return JSON.parse(s); } catch(e){ return s; }\
+                });\
             };\
           });\
-          window.chrome.webview.hostObjects[p.name] = obj;\
+          byName[p.name] = { id: p.id, methods: methods };\
+          cw.hostObjects[p.name] = obj;\
         });\
+        /* share.InvokeDeferred(callId, objectName, method, argsJson): the deferred\
+           (modal) call path pv-next uses for every a8 method. Returns\
+           {accepted:true} synchronously (the host-object call ends before any\
+           window opens), runs the op off-call via the existing enqueue, and\
+           delivers the outcome as a chrome.webview 'mybrowser:deferred' message\
+           keyed by callId. ('share','RunPlugin') is the generic RunPlugin(id,\
+           payload); its result is posted RAW because the reference RunPlugin\
+           returns the plugin's own output and pv-next's RunPlugin consumer does\
+           not unwrap an envelope. Other methods post per the host method's raw\
+           flag: the envelope by default, or the raw data when raw. */\
+        if (window.share && typeof window.share.InvokeDeferred !== 'function'){\
+          window.share.InvokeDeferred = function(callId, objectName, method, argsJson){\
+            var args = []; try { args = JSON.parse(argsJson); } catch(e){}\
+            if (!Array.isArray(args)) args = [];\
+            var reqObj, postRaw;\
+            if (objectName === 'share' && method === 'RunPlugin'){\
+              reqObj = { kind:'run', id: args[0], request: (args[1] != null ? String(args[1]) : '') };\
+              postRaw = true;\
+            } else {\
+              var e = byName[objectName];\
+              if (!e) return JSON.stringify({ accepted:false, error: \"host object '\" + objectName + \"' not found\" });\
+              var m = e.methods[method];\
+              if (!m) return JSON.stringify({ accepted:false, error: \"method '\" + objectName + '.' + method + \"' not found\" });\
+              reqObj = { kind:'run', id: e.id, request: JSON.stringify({ method: method, args: args }), ui: m.ui };\
+              postRaw = m.raw;\
+            }\
+            function deliver(msg){ if (cw && typeof cw.__deliver === 'function') cw.__deliver(msg); }\
+            run(JSON.stringify(reqObj)).then(function(s){\
+              var result;\
+              if (postRaw){\
+                var env; try { env = JSON.parse(s); } catch(e2){ env = null; }\
+                if (env && typeof env === 'object' && 'success' in env){\
+                  /* RunPlugin is the only deferred raw path; the reference RunPlugin\
+                     never throws to JS — it posts {error} (ok:true) — so mirror that. */\
+                  if (!env.success){ deliver({ type:'mybrowser:deferred', callId: callId, ok:true, result: JSON.stringify({ error: env.error_message || 'plugin error' }) }); return; }\
+                  result = env.data;\
+                } else { result = s; }\
+              } else { result = s; }\
+              deliver({ type:'mybrowser:deferred', callId: callId, ok:true, result: result });\
+            }).catch(function(err){\
+              deliver({ type:'mybrowser:deferred', callId: callId, ok:false, error: String(err) });\
+            });\
+            return JSON.stringify({ accepted:true });\
+          };\
+        }\
       })();";
     let shim = template.replace("__SENTINEL_HOST_SPEC__", spec_json);
     match view
@@ -572,18 +675,30 @@ pub fn prove_async_stream_roundtrip() -> Result<String> {
     }
 }
 
-/// Headless proof that pv-next's REAL idbox path works against our bridge: install
-/// the async bridge + an `idbox` host object, paste pv-next's own minified bridge
-/// helpers (`o`/`s`/`c` from `bridge-*.js`) and its `IdBoxPluginService.readChipUid`
-/// VERBATIM (imports stripped), then drive `readChipUid()` and settle the calls the
-/// way the host would: `GetPlugins` → the descriptor list, `ReadChipUid` → a
-/// `PluginResult` envelope. Returns what pv-next's service observed — proving the
-/// host-object method surface (`hostObjects.idbox.ReadChipUid()`), not just
-/// `share.RunPlugin`, reaches the plugin and unwraps correctly.
+/// Headless proof that pv-next's REAL, unmodified bridge drives our host bridge
+/// correctly. `bridge_js` is the actual `bridge-*.js` shipped by pv-next (passed in
+/// by the test from a fixture); its trailing ES `export{…}` is rewritten to
+/// `window.__pv = {…}` so it runs as a classic script, and NOTHING else is touched —
+/// its own `a8` deferred allowlist, `Proxy`/`then`-trap dispatch, `InvokeDeferred`
+/// call and `mybrowser:deferred` listener are exercised as-is.
+///
+/// It then drives three paths through that bridge and settles the enqueued work the
+/// way the shell would (`GetPlugins` → descriptors; each `run` → a `PluginResult`
+/// envelope):
+/// - **deferred** `idbox.ReadChipUid()` (in `a8`) → must go through `InvokeDeferred`
+///   and come back via the `mybrowser:deferred` message; unwrapped `success?data`.
+/// - **direct raw** `system.isDebug()` (NOT in `a8`) → called straight on the host
+///   object; our raw wrapper returns the JSON-decoded `data` (here boolean `true`).
+/// - **direct envelope** `system.getEnv()` → the default wrapper returns the whole
+///   envelope object.
+///
+/// Returns a JSON summary `{"uid","idef","dbg","dbgType","envHasSuccess"}` the test
+/// asserts on (`idef` is the number of `InvokeDeferred` calls — exactly 1, the
+/// deferred one; the two direct calls must not use it).
 ///
 /// # Errors
 /// [`Error::Engine`] on engine/eval failure.
-pub fn prove_idbox_hostobject() -> Result<String> {
+pub fn prove_pvnext_bridge(bridge_js: &str) -> Result<String> {
     let renderer = crate::headless::init_renderer()?;
     let view = crate::headless::create_cpu_view(&renderer, 16, 16)?;
     view.load_html("<html><body></body></html>")
@@ -593,63 +708,83 @@ pub fn prove_idbox_hostobject() -> Result<String> {
     let pending: PendingCalls = Arc::new(Mutex::new(Vec::new()));
     let origin = Origin::parse("https://pv-next.example").expect("valid test origin");
     install_async_bridge(&view, origin, pending.clone())?;
-    // The idbox host object, exactly as the shell would build it from the registry.
+    // idbox exposes a deferred (a8) method; system exposes a direct raw method and a
+    // direct envelope method — exactly as the shell would build them from the registry.
     install_host_objects(
         &view,
-        r#"[{"name":"idbox","id":"Asbt.IdBox","methods":[{"js":"ReadChipUid","ui":false},{"js":"ReadDocument","ui":true}]}]"#,
+        r#"[{"name":"idbox","id":"Asbt.IdBox","methods":[{"js":"ReadChipUid","ui":false,"raw":false}]},
+            {"name":"system","id":"Asbt.System","methods":[{"js":"isDebug","ui":false,"raw":true},{"js":"getEnv","ui":false,"raw":false}]}]"#,
     )?;
 
-    // pv-next's own bridge helpers (bridge-aKl3hV6O.js), imports stripped, plus its
-    // IdBoxPluginService.readChipUid — verbatim logic.
-    let pv = "\
-        function e(){return globalThis.chrome && globalThis.chrome.webview && globalThis.chrome.webview.hostObjects}\
-        function t(){var h=e();return h&&h.share?h.share:null}\
-        async function i(){let x=t();if(!x)return[];try{let v=JSON.parse(await x.GetPlugins());return Array.isArray(v)?v:[]}catch(err){return[]}}\
-        var r=null;\
-        async function a(){if(r)return r;let p=i();r=p;let v=await p;return v.length===0&&r===p&&(r=null),v}\
-        async function o(name){return (await a()).some(function(x){return x.name===name})?(e()?e()[name]:null)||null:null}\
-        async function s(v){if(v==null)return null;var f=typeof v==='object'?v.ToString:void 0;if(typeof v==='object'&&typeof f!=='function')return v;var n=typeof v==='object'?await f.call(v):String(v);try{return JSON.parse(n)}catch(err){return n}}\
-        function c(v){if(v.success)return v.data;if(!v.error_message)return null;throw Error(v.error_message)}\
-        async function readChipUid(){var host=await o('idbox');if(!host)throw Error('no idbox host');var raw=await s(await host.ReadChipUid());return c(raw)==null?'':c(raw)}\
-        window.__uid='PENDING';\
-        readChipUid().then(function(u){window.__uid=u}).catch(function(err){window.__uid='ERR:'+err.message});";
+    // Run pv-next's REAL bridge as a classic script: only the ES export is rewritten.
+    let export = "export{aq as a,ap as i,aj as n,ao as o,am as r,an as t};";
+    if !bridge_js.contains(export) {
+        return Err(Error::Engine(
+            "bridge fixture missing the expected export statement".to_string(),
+        ));
+    }
+    let bridge = bridge_js.replace(export, "window.__pv={a:aq,i:ap,n:aj,o:ao,r:am,t:an};");
     if let Err(js) = view
-        .evaluate_script(pv)
-        .map_err(|e| Error::Engine(format!("pv-next harness eval failed: {e:?}")))?
+        .evaluate_script(&bridge)
+        .map_err(|e| Error::Engine(format!("bridge eval failed: {e:?}")))?
     {
-        return Err(Error::Engine(format!("pv-next harness threw: {js}")));
+        return Err(Error::Engine(format!("bridge threw: {js}")));
     }
 
-    // Settle whatever the flow enqueues, pumping microtasks between rounds so the
-    // next await (GetPlugins → then ReadChipUid) can run. The reply is CONDITIONAL
-    // on exactly what the generated host-object wrapper produced: a `list` call gets
-    // the descriptor array; a `run` call gets the UID envelope ONLY if it carries
-    // id "Asbt.IdBox", inner method "ReadChipUid" and ui=false — a wrong id/method/
-    // ui would get a failure and the UID assertion would catch it.
-    for _ in 0..6 {
+    // Drive the three paths through pv-next's own exports. Count InvokeDeferred so the
+    // test can prove the deferred method used it and the direct ones did not.
+    let harness = "window.__out='PENDING';\
+        (async function(){\
+          var P=window.__pv;\
+          var _id=window.share.InvokeDeferred; window.__idef=0;\
+          window.share.InvokeDeferred=function(){ window.__idef++; return _id.apply(this,arguments); };\
+          var h=await P.t('idbox');\
+          var uid=h?P.i(await P.o(await h.ReadChipUid())):'NO_IDBOX';\
+          var sys=await P.t('system');\
+          var dbg=sys?await sys.isDebug():'NO_SYS';\
+          var env=sys?await sys.getEnv():null;\
+          window.__out=JSON.stringify({\
+            uid:uid, idef:window.__idef, dbg:dbg, dbgType:typeof dbg,\
+            envHasSuccess:!!(env&&typeof env==='object'&&env.success===true)\
+          });\
+        })().catch(function(err){ window.__out='ERR:'+((err&&err.message)?err.message:String(err)); });";
+    if let Err(js) = view
+        .evaluate_script(harness)
+        .map_err(|e| Error::Engine(format!("harness eval failed: {e:?}")))?
+    {
+        return Err(Error::Engine(format!("harness threw: {js}")));
+    }
+
+    // Settle the enqueued work, pumping microtasks between rounds so each awaited step
+    // (GetPlugins → the host-object call → its result) can advance. Replies are keyed
+    // on the inner method so a wrong id/method would be caught by the assertions.
+    for _ in 0..12 {
         let calls = std::mem::take(&mut *pending.lock().unwrap_or_else(|p| p.into_inner()));
         for call in calls {
             let v: serde_json::Value =
                 serde_json::from_str(&call.request).unwrap_or(serde_json::Value::Null);
-            let fail = r#"{"data":"","success":false,"error_message":"unexpected host-object call"}"#;
+            let fail = r#"{"data":"","success":false,"error_message":"unexpected call"}"#;
             let reply = match v.get("kind").and_then(|k| k.as_str()) {
-                Some("list") => {
-                    r#"[{"id":"Asbt.IdBox","name":"idbox","version":"1.0.0","kind":"ui"}]"#.to_string()
-                }
+                Some("list") => r#"[{"id":"Asbt.IdBox","name":"idbox","version":"1.0.0","kind":"ui"},
+                    {"id":"Asbt.System","name":"system","version":"1.0.0","kind":"ui"}]"#
+                    .to_string(),
                 Some("run") => {
-                    let id = v.get("id").and_then(|x| x.as_str()).unwrap_or("");
-                    let ui = v.get("ui").and_then(|x| x.as_bool()).unwrap_or(true);
-                    // The inner request the wrapper built: {"method":"ReadChipUid","args":[]}.
                     let inner: serde_json::Value = v
                         .get("request")
                         .and_then(|x| x.as_str())
                         .and_then(|s| serde_json::from_str(s).ok())
                         .unwrap_or(serde_json::Value::Null);
                     let method = inner.get("method").and_then(|m| m.as_str()).unwrap_or("");
-                    if id == "Asbt.IdBox" && method == "ReadChipUid" && !ui {
-                        r#"{"data":"04a1b2c3d4e5f6","success":true,"error_message":""}"#.to_string()
-                    } else {
-                        fail.to_string()
+                    match method {
+                        "ReadChipUid" => {
+                            r#"{"data":"04a1b2c3d4e5f6","success":true,"error_message":""}"#.to_string()
+                        }
+                        // raw method: data is JSON-encoded (boolean true).
+                        "isDebug" => r#"{"data":"true","success":true,"error_message":""}"#.to_string(),
+                        "getEnv" => {
+                            r#"{"data":"{\"k\":1}","success":true,"error_message":""}"#.to_string()
+                        }
+                        _ => fail.to_string(),
                     }
                 }
                 _ => fail.to_string(),
@@ -660,11 +795,11 @@ pub fn prove_idbox_hostobject() -> Result<String> {
     }
 
     match view
-        .evaluate_script("window.__uid")
-        .map_err(|e| Error::Engine(format!("uid read failed: {e:?}")))?
+        .evaluate_script("window.__out")
+        .map_err(|e| Error::Engine(format!("result read failed: {e:?}")))?
     {
         Ok(s) => Ok(s),
-        Err(js_exception) => Err(Error::Engine(format!("uid read threw: {js_exception}"))),
+        Err(js_exception) => Err(Error::Engine(format!("result read threw: {js_exception}"))),
     }
 }
 

@@ -45,16 +45,39 @@ pub struct HostMethod {
     /// Whether invoking it opens a modal window (routes through the UI overlay),
     /// as opposed to a plain one-shot call.
     pub ui: bool,
+    /// How the method's result is handed back to pv-next.
+    ///
+    /// `false` (the default) — the page receives the whole [`PluginResult`]
+    /// envelope (`{data, success, error_message}`). The idbox / fingerprints /
+    /// photo / signpad services unwrap it themselves (`success ? data : throw`),
+    /// so the reference `.NET` host object for those plugins also returned an
+    /// envelope-shaped object.
+    ///
+    /// `true` — the page receives the raw value: on success the method's `data`,
+    /// JSON-decoded (so the plugin controls the JS type: `"true"` → `true`,
+    /// `"\"x\""` → `"x"`, `"{…}"` → an object); on failure the call throws
+    /// `error_message`. This matches the reference host objects whose services use
+    /// the result verbatim with no envelope unwrap (e.g. `system`, whose
+    /// `isDebug()`/`GetGUID()`/… returned native values). A raw method MUST encode
+    /// its return as JSON in `data`.
+    #[serde(default)]
+    pub raw: bool,
 }
 
 impl HostMethod {
-    /// A plain (non-UI) host method.
+    /// A plain (non-UI) host method whose result is the [`PluginResult`] envelope.
     pub fn run(js: impl Into<String>) -> Self {
-        Self { js: js.into(), ui: false }
+        Self { js: js.into(), ui: false, raw: false }
     }
-    /// A host method that opens a modal window.
+    /// A host method that opens a modal window; result is the envelope.
     pub fn ui(js: impl Into<String>) -> Self {
-        Self { js: js.into(), ui: true }
+        Self { js: js.into(), ui: true, raw: false }
+    }
+    /// A plain (non-UI) host method whose result is the raw, JSON-decoded `data`
+    /// (see [`HostMethod::raw`]) — for a host object whose pv-next service uses the
+    /// return value directly, with no envelope unwrap.
+    pub fn run_raw(js: impl Into<String>) -> Self {
+        Self { js: js.into(), ui: false, raw: true }
     }
 }
 

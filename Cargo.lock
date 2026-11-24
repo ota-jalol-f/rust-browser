@@ -2394,6 +2394,7 @@ dependencies = [
  "sentinel-photo",
  "sentinel-plugin",
  "sentinel-signpad",
+ "sentinel-widget",
  "serde_json",
  "softbuffer",
  "winit",
@@ -2431,6 +2432,15 @@ dependencies = [
 [[package]]
 name = "sentinel-test-plugin"
 version = "0.1.0"
+
+[[package]]
+name = "sentinel-widget"
+version = "0.1.0"
+dependencies = [
+ "sentinel-plugin",
+ "serde",
+ "serde_json",
+]
 
 [[package]]
 name = "serde"
